@@ -12,10 +12,11 @@ all: compile task1 clean
 compile: $(OBJS) $(HDRS)
 	$(CC) $(CXXFLAGS) $(OBJS) $(HDRS) $(LDLIBS) -o compile
 
-# # This target will run the out file
+# This target will run the out file
 task1: compile
 	./compile
 
+# This target will remove .o files and compile executable
 clean :
 	-rm -f *.o compile 
 

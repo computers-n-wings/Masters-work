@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+#include <string>
 #include "myfunctions.h"
 using namespace std;
 
@@ -7,6 +8,8 @@ int main()
 {
 	// ########################################## Parameters ################################################
 	// ######################################################################################################
+	int time_dependence = 1;
+	int scheme = 0;
 
 	const double L = 10000.0; 
 	const int Nx = 24;
@@ -17,12 +20,9 @@ int main()
 	const double qy = 1.0;
 	const double l = L/(double)Nx;
 	const double Fy = 1000.0;
-	int time_dependence = 0;
-	int scheme = 0;
-
 	const double T = 1.0;
 	const int Nt = 1000;
-	const double rho = 7850.0e-12;
+	const double rho = 7850.0e-09;
 	const int Ne = 6; 	
 	const int N = (Nx-1)*(Ne/2);											
 	
@@ -39,10 +39,10 @@ int main()
    		Build_K_elemental(Ke, Ne, A, E, l, I);
    		Build_global_matrix(K, Ke, Nx, N);	
    		Build_F_elemental(Fe, qx, qy, l, 1.0);
-   		Build_F_global(F, Fe, Nx, Fy, 1.0);
+   		Build_F_global(F, Fe, Nx, Fy, 1.0, N);
 
-   		Matrix_System_Solver(N, K, F);
-   		Write_Text_File(F,N, l, L);
+   		Matrix_System_Solver(K, F, N);
+   		Write_Text_File(F,N, l, L, "Task1");
    		Print_Vector(F, N);
 
    		delete[] Ke;
@@ -62,34 +62,31 @@ int main()
 			double * K = new double[N*N];
 			double * F = new double[N];						
    			double * M = new double[N*N];
-   			double * S = new double[N];
    			double * u0 = new double[N];
    			double * u1 = new double[N];
-   			double * K_temp = new double[N*N];
-
+   			double * S = new double[N];
+   			
    			Build_K_elemental(Ke, Ne, A, E, l, I);
    			Build_global_matrix(K, Ke, Nx, N);
    			Build_M_elemental(Me, Ne, rho, A, l);
    			Build_global_matrix(M, Me, Nx, N);
 
-   			Build_Un1_Multiplier(K_temp, K, M, N, del_t);
-
    			for (int i = 0; i<Nt; ++i)
    			{
-   				double * F = new double[N];	
-   				double * S = new double[N];
-   				Build_F_elemental(Fe, qx, qy, l, del_t*(i+1));
-   				Build_F_global(F, Fe, Nx, Fy, del_t*(i+1));
-   				Build_Multiplier(S, F, K_temp, M, del_t, u0, u1, N);
-   				Copy_Vector(N, u1, u0);
-   				Matrix_System_Solver(N, M, S);
-   				Copy_Vector(N, S, u1);
-   				Print_Vector(u0, N);
-   				cout << endl;
-   				Print_Vector(u1, N);
-   				cout << endl;
+   				Build_F_elemental(Fe, qx, qy, l, (double)(i+1)*del_t/T);
+   				Build_F_global(F, Fe, Nx, Fy, (double)(i+1)*del_t/T, N);
+   				Build_Multiplier(S, F, K, M, u0, u1, del_t, N);
+   				Copy_Vector(u1, u0, N);
+   				Matrix_System_Solver(M, S, N);
+   				Copy_Vector(S, u1, N);
+   				if (i % (Nt/10) == 0)
+   				{
+   					Write_Text_File(u1,N, l, L, "Task2_Time_Step" + to_string(i));
+   				}					   				
    			}
+   			Print_Vector(u1, N);
 
+   			
    			delete[] Fe;
    			delete[] F;
    			delete[] Ke;
@@ -98,8 +95,8 @@ int main()
    			delete[] M;
    			delete[] u0;
    			delete[] u1;
-   			delete[] K_temp;
    			delete[] S;
+
    		}
    		else if (scheme == 1)
    		{

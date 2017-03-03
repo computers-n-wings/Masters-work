@@ -1,6 +1,7 @@
 #include <iomanip>
 #include <iostream>
 #include <fstream>
+#include <string>
 using namespace std;
 
 #define F77NAME(x) x##_
@@ -46,6 +47,19 @@ void Print_Vector(double b[], int n)
 	}
 }
 
+void Zero_Vector(double a[], int N)
+{
+	for (int i = 0; i<N; ++i)
+	{
+		a[i] = 0.0;
+	}
+}
+
+void Copy_Vector(double a[], double b[], int N)
+{
+	F77NAME(dcopy) (N, a, 1, b, 1);
+}
+
 void Build_K_elemental(double Ke[], int n, double A, double E, double l, double I)
 {
 	double K1 = A*E/l; 							
@@ -82,6 +96,8 @@ void Build_K_elemental(double Ke[], int n, double A, double E, double l, double 
 
 void Build_F_elemental(double Fe[], double qx, double qy, double l, double time)
 {
+	Zero_Vector(Fe, 6);
+
 	const double F1 = time*qx*l/2.0; 							
 	const double F2 = time*qy*l/2.0; 							
 	const double F3 = time*qy*l*l/12.0; 	
@@ -167,8 +183,10 @@ void Build_K_global_banded(double Kb[], double Ke[], int Nx, int N, int kl, int 
 	}
 }
 
-void Build_F_global(double F[], double Fe[], int Nx, double Fy, double time)
+void Build_F_global(double F[], double Fe[], int Nx, double Fy, double time, int N)
 {
+	Zero_Vector(F, N);
+
 	for (int k = 0; k<Nx; ++k)
 	{
 		if (k == 0)
@@ -209,18 +227,24 @@ void Banded_Storage(double Kb[], double K[], int N, int kl, int ku)
 	}
 }
 
-void Matrix_System_Solver(int N, double K[], double F[])
+void Matrix_System_Solver(double A[], double b[], int N)
 {
+	double * A_temp = new double[N*N];
+    Copy_Vector(A, A_temp, N*N);
+    
 	const int nrhs = 1;
     int info = 0;
     int * ipiv = new int[N];
-    F77NAME(dgesv) (N, nrhs, K, N, ipiv, F, N, info);
+
+    F77NAME(dgesv) (N, nrhs, A_temp, N, ipiv, b, N, info);
+    
+    delete[] A_temp;
 }
 
-void Write_Text_File(double F[], int N, double l, double L)
+void Write_Text_File(double F[], int N, double l, double L, string mystring)
 {
 	ofstream File;
-	File.open("displacements.txt");
+	File.open(mystring + ".txt");
 
 	if (File.good())
 	{
@@ -253,33 +277,61 @@ void Build_M_elemental(double Me[], int Ne, double rho, double A, double l)
 	Me[5*Ne + 5] = M2;
 }
 
-void Build_Un1_Multiplier(double K_temp[], double K[], double M[], int N, double del_t)
+void Build_Fn(double F[], double Fn[], double del_t, int N)
 {
-	F77NAME(dcopy) (N*N, K, 1, K_temp, 1);
-	F77NAME(dscal) (N*N, -del_t*del_t, K_temp, 1);
-	F77NAME(daxpy) (N*N, 2.0, M, 1, K_temp, 1);
+	Copy_Vector(F, Fn, N);
+	F77NAME(dscal) (N, del_t*del_t, Fn, 1);
 }
 
-void Build_Multiplier(double S[], double F[], double K_temp[], double M[], double del_t, double u0[], double u1[], int N)
+void Build_Un1_Multiplier(double Un1[], double K[], double M[], double u1[], int N, double del_t)
 {
-	double * F_temp = new double[N];
-	double * U_n1 = new double[N];
-	double * U_n0 = new double[N];
+	double * K_temp = new double[N*N];
+	Copy_Vector(K, K_temp, N*N);
 
-	F77NAME(dcopy) (N, F, 1, F_temp, 1);
-	F77NAME(dscal) (N, del_t*del_t, F_temp, 1);
-	F77NAME(dgemv) ('N', N, N, 1.0, K_temp, N, u1, 1, 0.0, U_n1, 1);
-	F77NAME(dgemv) ('N', N, N, -1.0, M, N, u0, 1, 0.0, U_n0, 1);
-	F77NAME(daxpy) (N, 1.0, U_n0, 1, U_n1, 1);
-	F77NAME(daxpy) (N, 1.0, U_n1, 1, F_temp, 1);
-	F77NAME(dcopy) (N, F_temp, 1, S, 1);
+	Zero_Vector(Un1, N);
+	Copy_Vector(u1, Un1, N);
 
-	delete[] F_temp;
-	delete[] U_n1;
-	delete[] U_n0;
+	F77NAME(dscal) (N*N, del_t*del_t, K_temp, 1);
+	F77NAME(daxpy) (N*N, -2.0, M, 1, K_temp, 1);
+	Matrix_System_Solver(K_temp, Un1, N);
+
+	delete[] K_temp;
 }
 
-void Copy_Vector(int N, double a[], double b[])
+void Build_Un0_Multiplier(double Un0[], double M[], double u0[], int N)
 {
-	F77NAME(dcopy) (N, a, 1, b, 1);
+	double * M_temp = new double[N*N];
+	Copy_Vector(M, M_temp, N*N);
+
+	Zero_Vector(Un0, N);
+	Copy_Vector(u0, Un0, N);
+
+	Matrix_System_Solver(M_temp, Un0, N);
+
+	delete[] M_temp;
 }
+
+void Build_Multiplier(double S[], double F[], double K[], double M[], double u0[], double u1[], double del_t, int N)
+{
+	double * Fn = new double[N];
+	double * Un0 = new double[N];
+	double * Un1 = new double[N];
+
+	Zero_Vector(S, N);
+	Zero_Vector(Fn, N);
+	Zero_Vector(Un0, N);
+	Zero_Vector(Un1, N);
+	
+	Build_Fn(F, Fn, del_t, N);
+	Build_Un1_Multiplier(Un1, K, M, u1, N, del_t);
+	Build_Un0_Multiplier(Un0, M, u0, N);
+	
+	F77NAME(daxpy) (N, 1.0, Fn, 1, S, 1);
+	F77NAME(daxpy) (N, -1.0, Un1, 1, S, 1);
+	F77NAME(daxpy) (N, -1.0, Un0, 1, S, 1);
+
+	delete[] Fn;
+	delete[] Un1;
+   	delete[] Un0;
+}
+
