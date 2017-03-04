@@ -46,20 +46,10 @@ int main(int argc, char* argv[])
 
     // ########################################## Parameters ################################################
 	// ######################################################################################################
-	// int time_dependence = 0;
-	// int scheme = 0;
-
-	// const double L = 10000.0; 
-	// const int Nx = 24;
-	// const double A = 12000.0;
-	// const double I = 14400000.0; 
-	// const double E = 2.1e+06;
 	const double qx = 0.0;
 	const double qy = -1.0;
 	const double l = L/(double)Nx;
 	const double Fy = -1000.0;
-	// const double T = 1.0;
-	// const int Nt = 10000;
 	const double rho = 7850.0e-09;
 	const int Ne = 6; 	
 	const int N = (Nx-1)*(Ne/2);											
@@ -75,15 +65,14 @@ int main(int argc, char* argv[])
 		double * F = new double[N]();
 
 		int ku = 4; int kl = 4;
-		int m = ku+kl+1;
-		double * Kb = new double[m*N];	
-
+		int m = ku+2*kl+1;
+		double * Kb = new double[m*N]();	
    		Build_K_elemental(Ke, Ne, A, E, l, I);
    		Build_global_matrix(K, Ke, Nx, N);	
    		Print_Matrix(K, N, N);
 		cout << endl;
 		Banded_Storage(Kb, K, N, kl, ku);
-		Print_Matrix(Kb, N, m);
+		Print_Matrix(Kb, m, N);
 		cout << endl;
    		// Build_F_elemental(Fe, qx, qy, l, 1.0);
    		// Build_F_global(F, Fe, Nx, Fy, 1.0, N);
