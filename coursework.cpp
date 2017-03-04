@@ -69,20 +69,27 @@ int main(int argc, char* argv[])
     
    if (time_dependence == 0)
    {
-   		double * Ke = new double[Ne*Ne]; 				
-		double * Fe = new double[Ne]; 
-		double * K = new double[N*N];					
-		double * F = new double[N];	
+   		double * Ke = new double[Ne*Ne](); 				
+		double * Fe = new double[Ne](); 
+		double * K = new double[N*N]();					
+		double * F = new double[N]();
+
+		int ku = 4; int kl = 4;
+		int m = ku+kl+1;
+		double * Kb = new double[m*N];	
 
    		Build_K_elemental(Ke, Ne, A, E, l, I);
-   		Print_Matrix(Ke, Ne, Ne);
    		Build_global_matrix(K, Ke, Nx, N);	
-   		Build_F_elemental(Fe, qx, qy, l, 1.0);
-   		Build_F_global(F, Fe, Nx, Fy, 1.0, N);
+   		Print_Matrix(K, N, N);
+		cout << endl;
+		Banded_Storage(Kb, K, N, kl, ku);
+		Print_Matrix(Kb, N, m);
+		cout << endl;
+   		// Build_F_elemental(Fe, qx, qy, l, 1.0);
+   		// Build_F_global(F, Fe, Nx, Fy, 1.0, N);
 
-   		Matrix_System_Solver(K, F, N);
-   		Write_Vector(F,N, l, L, "Task1");
-   		// Print_Vector(F, N);
+   		// Matrix_System_Solver(K, F, N);
+   		// Write_Vector(F,N, l, L, "Task1");
 
    		delete[] Ke;
    		delete[] Fe;
@@ -95,16 +102,16 @@ int main(int argc, char* argv[])
    		{
    			const double del_t = T/(double)Nt;
 
-   			double * Ke = new double[Ne*Ne]; 				
-			double * Fe = new double[Ne]; 
-			double * Me = new double[Ne*Ne];
-			double * K = new double[N*N];
-			double * F = new double[N];						
-   			double * M = new double[N*N];
-   			double * u0 = new double[N];
-   			double * u1 = new double[N];
-   			double * S = new double[N];
-   			double * d = new double[Nt];
+   			double * Ke = new double[Ne*Ne](); 				
+			double * Fe = new double[Ne](); 
+			double * Me = new double[Ne*Ne]();
+			double * K = new double[N*N]();
+			double * F = new double[N]();						
+   			double * M = new double[N*N]();
+   			double * u0 = new double[N]();
+   			double * u1 = new double[N]();
+   			double * S = new double[N]();
+   			double * d = new double[Nt]();
    			
    			Build_K_elemental(Ke, Ne, A, E, l, I);
    			Build_global_matrix(K, Ke, Nx, N);

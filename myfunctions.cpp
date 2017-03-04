@@ -223,14 +223,14 @@ void Banded_Storage(double Ab[], double A[], int N, int kl, int ku)
 	{
 		for (int j = 0; j<N; ++j)
 		{
-			Ab[(ku+i-j)*N+j] = A[i*N+j];
+			Ab[j*N+ku+i-j] = A[i*N+j];
 		}
 	}
 }
 
 void Matrix_System_Solver(double A[], double b[], int N)
 {
-	double * A_temp = new double[N*N];
+	double * A_temp = new double[N*N]();
     Copy_Vector(A, A_temp, N*N);
     
 	const int nrhs = 1;
@@ -308,7 +308,7 @@ void Build_Fn(double F[], double Fn[], double del_t, int N)
 void Build_Un1_Multiplier(double Un1[], double K[], double M[], double u1[], int N, double del_t)
 {
 	Zero_Vector(Un1, N);
-	double * K_temp = new double[N*N];
+	double * K_temp = new double[N*N]();
 	Copy_Vector(K, K_temp, N*N);
 
 	F77NAME(dscal) (N*N, del_t*del_t, K_temp, 1);
@@ -321,7 +321,7 @@ void Build_Un1_Multiplier(double Un1[], double K[], double M[], double u1[], int
 void Build_Un0_Multiplier(double Un0[], double M[], double u0[], int N)
 {
 	Zero_Vector(Un0, N);
-	double * M_temp = new double[N*N];
+	double * M_temp = new double[N*N]();
 	Copy_Vector(M, M_temp, N*N);
 
 	F77NAME(dgemv) ('N', N, N, 1.0 , M_temp, N, u0, 1, 1.0, Un0, 1);
@@ -330,9 +330,9 @@ void Build_Un0_Multiplier(double Un0[], double M[], double u0[], int N)
 
 void Build_Multiplier(double S[], double F[], double K[], double M[], double u0[], double u1[], double del_t, int N)
 {
-	double * Fn = new double[N];
-	double * Un0 = new double[N];
-	double * Un1 = new double[N];
+	double * Fn = new double[N]();
+	double * Un0 = new double[N]();
+	double * Un1 = new double[N]();
 
 	Zero_Vector(S, N);
 	
@@ -351,8 +351,8 @@ void Build_Multiplier(double S[], double F[], double K[], double M[], double u0[
 
 double RMS_error(double u1[], double S[], double M[], int N)
 {
-	double * res = new double[N];
-	double * M_temp = new double[N*N];
+	double * res = new double[N]();
+	double * M_temp = new double[N*N]();
 	Copy_Vector(M, M_temp, N*N);
 
 	F77NAME(dgemv) ('N', N, N, 1.0 , M_temp, N, u1, 1, 1.0, res, 1);
