@@ -4,24 +4,62 @@
 #include "myfunctions.h"
 using namespace std;
 
-int main()
+#include <boost/program_options.hpp>
+namespace po = boost::program_options;
+// int main()
+int main(int argc, char* argv[])
 {
-	// ########################################## Parameters ################################################
-	// ######################################################################################################
-	int time_dependence = 1;
-	int scheme = 0;
+	po::options_description desc("Solving for displacement along a beam");
+    desc.add_options()
+        ("L",  po::value<double>(),    "Length of the beam")
+        ("Nx", po::value<int>(), "Number of elements")
+        ("A", po::value<double>(), "Area of cross-section")
+        ("I", po::value<double>(), "Second moment of inertia")
+        ("E", po::value<double>(), "Young's modulus")
+        ("time_dependence", po::value<int>(), "Time dependence: 0 for static, 1 for dynamic")
+        ("scheme", po::value<int>(), "Integration scheme: 0 for explicit, 1 for implicit")
+        ("T", po::value<double>(), "Number of seconds if dynamic problem")
+        ("Nt", po::value<int>(), "Number of time steps if dynamic problem")
+        ("help", 					"Produce help message");
 
-	const double L = 10000.0; 
-	const int Nx = 24;
-	const double A = 12000.0;
-	const double I = 14400000.0; 
-	const double E = 2.1e+06;
+        po::variables_map vm;
+        po::store(po::parse_command_line(argc, argv, desc), vm);
+        po::notify(vm);
+
+        if (vm.count("help")) 
+        {
+        	cout << "Solving for displacement along a beam." << endl;
+        	cout << desc << endl;
+        	return 0;
+    	}
+
+    	const double L = vm.count("L") ? vm["L"].as<double>() : 10000.0;
+    	const int Nx = vm.count("Nx") ? vm["Nx"].as<int>() : 24;
+    	const double A = vm.count("A") ? vm["A"].as<double>() : 12000.0;
+    	const double I = vm.count("I") ? vm["I"].as<double>() : 14400000.0;
+    	const double E = vm.count("E") ? vm["E"].as<double>() : 2.1e+06;
+    	const int time_dependence = vm.count("time_dependence") ? vm["time_dependence"].as
+    	<int>() : 0;
+    	const int scheme = vm.count("scheme") ? vm["scheme"].as<int>() : 0;
+    	const double T = vm.count("T") ? vm["T"].as<double>() : 1.0;
+    	const int Nt = vm.count("Nt") ? vm["Nt"].as<int>() : 10000;
+
+    // ########################################## Parameters ################################################
+	// ######################################################################################################
+	// int time_dependence = 0;
+	// int scheme = 0;
+
+	// const double L = 10000.0; 
+	// const int Nx = 24;
+	// const double A = 12000.0;
+	// const double I = 14400000.0; 
+	// const double E = 2.1e+06;
 	const double qx = 0.0;
-	const double qy = 1.0;
+	const double qy = -1.0;
 	const double l = L/(double)Nx;
-	const double Fy = 1000.0;
-	const double T = 1.0;
-	const int Nt = 1000;
+	const double Fy = -1000.0;
+	// const double T = 1.0;
+	// const int Nt = 10000;
 	const double rho = 7850.0e-09;
 	const int Ne = 6; 	
 	const int N = (Nx-1)*(Ne/2);											
@@ -37,13 +75,14 @@ int main()
 		double * F = new double[N];	
 
    		Build_K_elemental(Ke, Ne, A, E, l, I);
+   		Print_Matrix(Ke, Ne, Ne);
    		Build_global_matrix(K, Ke, Nx, N);	
    		Build_F_elemental(Fe, qx, qy, l, 1.0);
    		Build_F_global(F, Fe, Nx, Fy, 1.0, N);
 
    		Matrix_System_Solver(K, F, N);
-   		Write_Text_File(F,N, l, L, "Task1");
-   		Print_Vector(F, N);
+   		Write_Vector(F,N, l, L, "Task1");
+   		// Print_Vector(F, N);
 
    		delete[] Ke;
    		delete[] Fe;
@@ -65,6 +104,7 @@ int main()
    			double * u0 = new double[N];
    			double * u1 = new double[N];
    			double * S = new double[N];
+   			double * d = new double[Nt];
    			
    			Build_K_elemental(Ke, Ne, A, E, l, I);
    			Build_global_matrix(K, Ke, Nx, N);
@@ -79,12 +119,14 @@ int main()
    				Copy_Vector(u1, u0, N);
    				Matrix_System_Solver(M, S, N);
    				Copy_Vector(S, u1, N);
-   				if (i % (Nt/10) == 0)
-   				{
-   					Write_Text_File(u1,N, l, L, "Task2_Time_Step" + to_string(i));
-   				}					   				
+   				// if (i % (Nt/10) == 0)
+   				// {
+   				// 	Write_Vector(u1,N, l, L, "Task2_Time_Step" + to_string(i));
+   				// }
+   				d[i] = u1[(N-1)/2];					   				
    			}
-   			Print_Vector(u1, N);
+   			Write_Point_Displacement(d, Nt, "Task2");
+   			// Print_Vector(u1, N);
 
    			
    			delete[] Fe;
@@ -96,6 +138,7 @@ int main()
    			delete[] u0;
    			delete[] u1;
    			delete[] S;
+   			delete[] d;
 
    		}
    		else if (scheme == 1)

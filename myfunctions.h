@@ -23,7 +23,9 @@ void Build_F_global(double F[], double Fe[], int Nx, double Fy, double time, int
 
 void Matrix_System_Solver(double A[], double b[], int N);
 
-void Write_Text_File(double F[], int N, double l, double L, string mystring);
+void Write_Vector(double F[], int N, double l, double L, string mystring);
+
+void Write_Point_Displacement(double F[], int N, string mystring);
 
 void Build_M_elemental(double Me[], int Ne, double rho, double A, double l);
 
@@ -35,5 +37,5 @@ void Build_Un0_Multiplier(double Un0[], double M[], double u0[], int N);
 
 void Build_Multiplier(double S[], double F[], double K[], double M[], double u0[], double u1[], double del_t, int N);
 
-
+double RMS_error(double u1[], double S[], double M[], int N); 
 

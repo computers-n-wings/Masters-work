@@ -24,6 +24,7 @@ extern "C"
          				const double* a,    const int& lda,
          				const double* x,    const int& incx,
          				const double& beta, double* y, const int& incy);
+	double F77NAME(dnrm2) (const int& n, const double* a, const int& incx);
 }	
 
 
@@ -216,13 +217,13 @@ void Build_F_global(double F[], double Fe[], int Nx, double Fy, double time, int
 	}
 }
 
-void Banded_Storage(double Kb[], double K[], int N, int kl, int ku)
+void Banded_Storage(double Ab[], double A[], int N, int kl, int ku)
 {
 	for (int i = 0; i<N; ++i)
 	{
 		for (int j = 0; j<N; ++j)
 		{
-			Kb[(ku+i-j)*N+j] = K[i*N+j];
+			Ab[(ku+i-j)*N+j] = A[i*N+j];
 		}
 	}
 }
@@ -241,7 +242,7 @@ void Matrix_System_Solver(double A[], double b[], int N)
     delete[] A_temp;
 }
 
-void Write_Text_File(double F[], int N, double l, double L, string mystring)
+void Write_Vector(double F[], int N, double l, double L, string mystring)
 {
 	ofstream File;
 	File.open(mystring + ".txt");
@@ -254,6 +255,26 @@ void Write_Text_File(double F[], int N, double l, double L, string mystring)
 			File << l*(i+1) << ' ' << setw(5) << setprecision(5) << F[3*i+1] << '\n';
 		}
 		File << L << ' ' << setw(5) << setprecision(5) << 0;
+	}
+	else
+	{
+		cout << "The file is not good." << endl;
+	}
+
+	File.close();
+}
+
+void Write_Point_Displacement(double F[], int N, string mystring)
+{
+	ofstream File;
+	File.open(mystring + ".txt");
+
+	if (File.good())
+	{
+		for (int i = 0; i < N; ++i)
+		{
+			File << i << ' ' << setw(5) << setprecision(5) << F[i] << '\n';
+		}
 	}
 	else
 	{
@@ -279,35 +300,31 @@ void Build_M_elemental(double Me[], int Ne, double rho, double A, double l)
 
 void Build_Fn(double F[], double Fn[], double del_t, int N)
 {
+	Zero_Vector(Fn, N);
 	Copy_Vector(F, Fn, N);
 	F77NAME(dscal) (N, del_t*del_t, Fn, 1);
 }
 
 void Build_Un1_Multiplier(double Un1[], double K[], double M[], double u1[], int N, double del_t)
 {
+	Zero_Vector(Un1, N);
 	double * K_temp = new double[N*N];
 	Copy_Vector(K, K_temp, N*N);
 
-	Zero_Vector(Un1, N);
-	Copy_Vector(u1, Un1, N);
-
 	F77NAME(dscal) (N*N, del_t*del_t, K_temp, 1);
 	F77NAME(daxpy) (N*N, -2.0, M, 1, K_temp, 1);
-	Matrix_System_Solver(K_temp, Un1, N);
+	F77NAME(dgemv) ('N', N, N, 1.0 , K_temp, N, u1, 1, 1.0, Un1, 1);
 
 	delete[] K_temp;
 }
 
 void Build_Un0_Multiplier(double Un0[], double M[], double u0[], int N)
 {
+	Zero_Vector(Un0, N);
 	double * M_temp = new double[N*N];
 	Copy_Vector(M, M_temp, N*N);
 
-	Zero_Vector(Un0, N);
-	Copy_Vector(u0, Un0, N);
-
-	Matrix_System_Solver(M_temp, Un0, N);
-
+	F77NAME(dgemv) ('N', N, N, 1.0 , M_temp, N, u0, 1, 1.0, Un0, 1);
 	delete[] M_temp;
 }
 
@@ -318,9 +335,6 @@ void Build_Multiplier(double S[], double F[], double K[], double M[], double u0[
 	double * Un1 = new double[N];
 
 	Zero_Vector(S, N);
-	Zero_Vector(Fn, N);
-	Zero_Vector(Un0, N);
-	Zero_Vector(Un1, N);
 	
 	Build_Fn(F, Fn, del_t, N);
 	Build_Un1_Multiplier(Un1, K, M, u1, N, del_t);
@@ -335,3 +349,17 @@ void Build_Multiplier(double S[], double F[], double K[], double M[], double u0[
    	delete[] Un0;
 }
 
+double RMS_error(double u1[], double S[], double M[], int N)
+{
+	double * res = new double[N];
+	double * M_temp = new double[N*N];
+	Copy_Vector(M, M_temp, N*N);
+
+	F77NAME(dgemv) ('N', N, N, 1.0 , M_temp, N, u1, 1, 1.0, res, 1);
+	F77NAME(daxpy) (N, -1.0, S, 1, res, 1);
+	double residual = F77NAME(dnrm2)(N, res, 1);
+
+	delete[] M_temp;
+	delete[] res;
+	return residual;
+}

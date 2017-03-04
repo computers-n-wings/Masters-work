@@ -15,7 +15,7 @@ u = np.zeros_like(x)
 
 for i in range(len(x)):
 	if x[i] <= L/2:
-		u[i] += Fy*(3*L-4*x[i])*x[i]**2/(48*E*I) + (x[i]**2*qy*(L-x[i])**2)/(24*E*I)
+		u[i] -= Fy*(3*L-4*x[i])*x[i]**2/(48*E*I) + (x[i]**2*qy*(L-x[i])**2)/(24*E*I)
 	else:
 		u[i] = u[-i-1]
 
