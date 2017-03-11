@@ -25,16 +25,20 @@ extern "C"
          				const double* x,    const int& incx,
          				const double& beta, double* y, const int& incy);
 	double F77NAME(dnrm2) (const int& n, const double* a, const int& incx);
+	void F77NAME(dgbmv)(const char& trans, const int& m, const int& n,
+                    const int& kl, const int& ku,
+                    const double& alpha, const double* a, const int& lda,
+                    const double* x, const int& incx, const double& beta,
+                    double* y, const int& incy);
 }	
 
-
-void Print_Matrix(double A[], int m, int n) 
+void Print_Matrix(double A[], int n, int m) 
 {
 	for (int i = 0; i<m; ++i)
 	{
 		for (int j = 0; j<n; ++j)
 		{
-			cout << setprecision(3) << setw(15) << A[i*n+j];
+			cout << setprecision(3) << setw(15) << A[j*m+i];
 		} 
 		cout << endl;
 	}
@@ -95,6 +99,81 @@ void Build_K_elemental(double Ke[], int n, double A, double E, double l, double 
 	}
 }
 
+void Build_K_global_banded(double Kb[], double A, double E, double l, double L, double I, int Nx, int N, int kl, int ku, int lda, int bfr)
+{
+	double * Ke = new double[6*6]();
+	Build_K_elemental(Ke, 6, A, E, l, I);
+
+	for (int k = 0; k < Nx; ++k)
+		{
+			if (k==0)
+			{
+				for (int i = 0; i<3; ++i)
+				{
+					int pnt1 = (3*k+i)*lda+bfr+ku;
+					int pnt2 = (i+3)*6+(i+3);
+					int bnd1 = 3-i;
+					int bnd2 = i+1;
+
+					Kb[pnt1] += Ke[pnt2];
+
+					for (int j = 1; j<bnd1; ++j)
+					{
+						Kb[pnt1+j] += Ke[pnt2+j];
+					}
+					for (int l = 1; l < bnd2; ++l)
+					{
+						Kb[pnt1-l] += Ke[pnt2-l];
+					}
+				}
+			}
+			else if (k == Nx-1)
+			{
+				for (int i = 0; i<3; ++i)
+				{
+					int pnt1 = (3*(k-1)+i)*lda+bfr+ku;
+					int pnt2 = i*6+i;
+					int bnd1 = 3-i;
+					int bnd2 = i+1;
+
+					Kb[pnt1] += Ke[pnt2];
+
+					for (int j = 1; j<bnd1; ++j)
+					{
+						Kb[pnt1+j] += Ke[pnt2+j];
+					}
+					for (int l = 1; l < bnd2; ++l)
+					{
+						Kb[pnt1-l] += Ke[pnt2-l];
+					}
+				}
+			}
+			else
+			{
+				for (int i = 0; i<6; ++i)
+				{	
+					int pnt1 = (3*(k-1)+i)*lda+bfr+ku;
+					int pnt2 = i*6+i;
+					int bnd1 = 6-i;
+					int bnd2 = i+1;
+					
+					Kb[pnt1] += Ke[pnt2];
+
+					for (int j = 1; j<bnd1; ++j)
+					{
+						Kb[pnt1+j] += Ke[pnt2+j];
+					}
+					for (int l = 1; l < bnd2; ++l)
+					{
+						Kb[pnt1-l] += Ke[pnt2-l];
+					}
+
+				}
+			}
+		}
+		delete[] Ke;
+}
+
 void Build_F_elemental(double Fe[], double qx, double qy, double l, double time)
 {
 	Zero_Vector(Fe, 6);
@@ -110,83 +189,12 @@ void Build_F_elemental(double Fe[], double qx, double qy, double l, double time)
 	Fe[5] = -F3;
 }
 
-void Build_global_matrix(double K[], double Ke[], int Nx, int N)
-{
-	for (int k = 0; k<Nx; ++k)
-	{
-		if (k == 0)
-		{
-			for (int i = 0; i<3; ++i)
-			{
-				for (int j = 0; j<3; ++j)
-				{
-					K[i*N + j] += Ke[(i+3)*6+j+3];
-				}
-			}
-		}
-		else if (k == Nx-1)
-		{
-			for (int i = 0; i<3; ++i)
-			{
-				for (int j = 0; j<3; ++j)
-				{
-					K[(3*(k-1) + i)*N + 3*(k-1) + j] += Ke[i*6+j];
-				}
-			}
-		}
-		else
-		{
-			for (int i = 0; i<6; ++i)
-			{
-				for (int j = 0; j<6; ++j)
-				{
-					K[(3*(k-1) + i)*N + 3*(k-1) + j] += Ke[i*6+j];
-				}
-			}
-		}
-	}
-}
-
-void Build_K_global_banded(double Kb[], double Ke[], int Nx, int N, int kl, int ku)
-{
-	for (int k = 0; k<Nx; ++k)
-	{
-		if (k == 0)
-		{
-			for (int i = 0; i<3; ++i)
-			{
-				for (int j = 0; j<3; ++j)
-				{
-					Kb[(ku+i-j)*N + 3*(k-1) + j] += Ke[(i+3)*6+j+3];
-				}
-			}
-		}
-		else if (k == Nx-1)
-		{
-			for (int i = 0; i<3; ++i)
-			{
-				for (int j = 0; j<3; ++j)
-				{
-					Kb[(3*(k-1) + (ku+i-(3*(k-1) + j)))*N + 3*(k-1) + j] += Ke[i*6+j];
-				}
-			}
-		}
-		else
-		{
-			for (int i = 0; i<6; ++i)
-			{
-				for (int j = 0; j<6; ++j)
-				{
-					Kb[(3*(k-1) + (ku+i-(3*(k-1) + j)))*N + 3*(k-1) + j] += Ke[i*6+j];
-				}
-			}
-		}
-	}
-}
-
-void Build_F_global(double F[], double Fe[], int Nx, double Fy, double time, int N)
+void Build_F_global(double F[], double Fy, double qx, double qy, double time, double l, int Nx, int N)
 {
 	Zero_Vector(F, N);
+
+	double * Fe = new double[6]();
+	Build_F_elemental(Fe, qx, qy, l, time);
 
 	for (int k = 0; k<Nx; ++k)
 	{
@@ -215,17 +223,55 @@ void Build_F_global(double F[], double Fe[], int Nx, double Fy, double time, int
 			F[3*(k-1) +1] += time*Fy;
 		}
 	}
+
+	delete[] Fe;
 }
 
-void Banded_Storage(double Ab[], double A[], int N, int kl, int ku)
+void Build_M_elemental(double Me[], int Ne, double rho, double A, double l)
 {
-	for (int i = 0; i<N; ++i)
+	double alpha = 0.0416667;
+	double M1 = 0.5*rho*A*l;
+   	double M2 = rho*A*alpha*l*l*l;
+
+	Me[0] = M1;
+	Me[Ne + 1] = M1;
+	Me[2*Ne + 2] = M2;
+	Me[3*Ne + 3] = M1;
+	Me[4*Ne + 4] = M1;
+	Me[5*Ne + 5] = M2;
+}
+
+void Build_M_global_banded(double Mb[], double rho, double A, double l, int Nx, int N)
+{
+	double * Me = new double[6*6]();
+	Build_M_elemental(Me, 6, rho, A, l);
+
+	for (int k = 0; k<Nx; ++k)
 	{
-		for (int j = 0; j<N; ++j)
+		if (k == 0)
 		{
-			Ab[j*N+ku+i-j] = A[i*N+j];
+			for (int i = 0; i<3; ++i)
+			{
+				Mb[i] += Me[(i+3)*6+(i+3)];
+			}
+		}
+		else if (k == Nx-1)
+		{
+			for (int i = 0; i<3; ++i)
+			{
+				Mb[3*(k-1)+i] += Me[i*6+i];
+			}
+		}
+		else
+		{
+			for (int i = 0; i<6; ++i)
+			{
+				Mb[3*(k-1) +i] += Me[i*6+i];
+			}
 		}
 	}
+
+	delete[] Me;
 }
 
 void Matrix_System_Solver(double A[], double b[], int N)
@@ -240,6 +286,20 @@ void Matrix_System_Solver(double A[], double b[], int N)
     F77NAME(dgesv) (N, nrhs, A_temp, N, ipiv, b, N, info);
     
     delete[] A_temp;
+}
+
+void Banded_Matrix_Solver(double Ab[], double b[], int N, int lda, int kl, int ku)
+{
+	double * Ab_temp = new double[lda*N]();
+	Copy_Vector(Ab, Ab_temp, lda*N);
+
+	const int nrhs = 1;
+	int info = 0;
+	int * ipiv = new int[N];
+
+	F77NAME(dgbsv) (N, kl, ku, nrhs, Ab_temp, lda, ipiv, b, N, &info);
+
+	delete[] Ab_temp;
 }
 
 void Write_Vector(double F[], int N, double l, double L, string mystring)
@@ -284,61 +344,57 @@ void Write_Point_Displacement(double F[], int N, string mystring)
 	File.close();
 }
 
-void Build_M_elemental(double Me[], int Ne, double rho, double A, double l)
-{
-	double alpha = 0.0416667;
-	double M1 = 0.5*rho*A*l;
-   	double M2 = rho*A*alpha*l*l*l;
-
-	Me[0] = M1;
-	Me[Ne + 1] = M1;
-	Me[2*Ne + 2] = M2;
-	Me[3*Ne + 3] = M1;
-	Me[4*Ne + 4] = M1;
-	Me[5*Ne + 5] = M2;
-}
-
 void Build_Fn(double F[], double Fn[], double del_t, int N)
 {
 	Zero_Vector(Fn, N);
 	Copy_Vector(F, Fn, N);
+
 	F77NAME(dscal) (N, del_t*del_t, Fn, 1);
 }
 
-void Build_Un1_Multiplier(double Un1[], double K[], double M[], double u1[], int N, double del_t)
+void Build_Un1_Multiplier(double Un1[], double Kb[], double Mb[], double u1[], int N, int lda, double del_t, int kl, int ku)
 {
 	Zero_Vector(Un1, N);
-	double * K_temp = new double[N*N]();
-	Copy_Vector(K, K_temp, N*N);
 
-	F77NAME(dscal) (N*N, del_t*del_t, K_temp, 1);
-	F77NAME(daxpy) (N*N, -2.0, M, 1, K_temp, 1);
-	F77NAME(dgemv) ('N', N, N, 1.0 , K_temp, N, u1, 1, 1.0, Un1, 1);
+	double * K_temp = new double[lda*N]();
+	Copy_Vector(Kb, K_temp, lda*N);
+
+	F77NAME(dscal) (lda*N, del_t*del_t, K_temp, 1);
+
+	for (int i = 0; i < N; ++i)
+	{
+		int pnt1 = i*lda+ku;
+		K_temp[pnt1] += -2.0*Mb[i];
+	}
+
+	F77NAME(dgbmv) ('N', N, N, kl, ku, 1.0, K_temp, lda, u1, 1, 0.0, Un1, 1);
 
 	delete[] K_temp;
 }
 
-void Build_Un0_Multiplier(double Un0[], double M[], double u0[], int N)
+void Build_Un0_Multiplier(double Un0[], double Mb[], double u0[], int N)
 {
 	Zero_Vector(Un0, N);
-	double * M_temp = new double[N*N]();
-	Copy_Vector(M, M_temp, N*N);
 
-	F77NAME(dgemv) ('N', N, N, 1.0 , M_temp, N, u0, 1, 1.0, Un0, 1);
+	double * M_temp = new double[N]();
+	Copy_Vector(Mb, M_temp, N);
+
+	F77NAME(dgbmv) ('N', N, N, 0, 0, 1.0, M_temp, 1, u0, 1, 0.0, Un0, 1);
+
 	delete[] M_temp;
 }
 
-void Build_Multiplier(double S[], double F[], double K[], double M[], double u0[], double u1[], double del_t, int N)
+void Build_Multiplier1(double S[], double F[], double Kb[], double Mb[], double u0[], double u1[], double del_t, int N, int lda, int kl, int ku)
 {
+	Zero_Vector(S, N);
+
 	double * Fn = new double[N]();
 	double * Un0 = new double[N]();
 	double * Un1 = new double[N]();
-
-	Zero_Vector(S, N);
 	
 	Build_Fn(F, Fn, del_t, N);
-	Build_Un1_Multiplier(Un1, K, M, u1, N, del_t);
-	Build_Un0_Multiplier(Un0, M, u0, N);
+	Build_Un1_Multiplier(Un1, Kb, Mb, u1, N, lda, del_t, kl, ku);
+	Build_Un0_Multiplier(Un0, Mb, u0, N);
 	
 	F77NAME(daxpy) (N, 1.0, Fn, 1, S, 1);
 	F77NAME(daxpy) (N, -1.0, Un1, 1, S, 1);
@@ -352,14 +408,61 @@ void Build_Multiplier(double S[], double F[], double K[], double M[], double u0[
 double RMS_error(double u1[], double S[], double M[], int N)
 {
 	double * res = new double[N]();
-	double * M_temp = new double[N*N]();
-	Copy_Vector(M, M_temp, N*N);
+	double * M_temp = new double[N]();
+	Copy_Vector(M, M_temp, N);
 
-	F77NAME(dgemv) ('N', N, N, 1.0 , M_temp, N, u1, 1, 1.0, res, 1);
+	F77NAME(dgbmv) ('N', N, N, 0, 0, 1.0, M_temp, 1, u1, 1, 0.0, res, 1);
 	F77NAME(daxpy) (N, -1.0, S, 1, res, 1);
 	double residual = F77NAME(dnrm2)(N, res, 1);
 
 	delete[] M_temp;
 	delete[] res;
 	return residual;
+}
+
+void Build_K_eff(double Kb[], double Mb[], double del_t, double beta, int N, int ku, int kl, int lda)
+{
+	for (int i = 0; i < N; ++i)
+	{
+		int pnt1 = i*lda+ku+kl;
+		Kb[pnt1] += (1.0/(beta*del_t*del_t))*Mb[i];
+	}
+}
+
+void Build_Multiplier2(double S[], double F[], double Mb[], double u0[], double udot[], double uddot0[], double del_t, double beta, int N)
+{
+	Zero_Vector(S, N);
+
+	double * temp = new double[N]();
+	double * M_temp = new double[N]();
+
+	Copy_Vector(u0, temp, N);
+	Copy_Vector(Mb, M_temp, N);
+
+	F77NAME(dscal) (N, 1.0/(beta*del_t*del_t), temp, 1);
+	F77NAME(daxpy) (N, 1.0/(beta*del_t), udot, 1, temp, 1);
+	F77NAME(daxpy) (N, ((1.0-2.0*beta)/(2.0*beta)), uddot0, 1, temp, 1);
+	F77NAME(dgbmv) ('N', N, N, 0, 0, 1.0, M_temp, 1, temp, 1, 0.0, S, 1);
+	F77NAME(daxpy) (N, 1.0, F, 1, S, 1);
+
+	delete[] temp;
+	delete[] M_temp;
+}
+
+void Build_uddot(double uddot1[], double uddot0[], double u1[], double u0[], double udot[], double beta, double del_t, int N)
+{
+	Copy_Vector(uddot0, uddot1, N);
+	F77NAME(dscal) (N, -((1.0-(2.0*beta))/(2.0*beta)), uddot1, 1);
+	F77NAME(daxpy) (N, -1.0/(beta*del_t), udot, 1, uddot1, 1);
+	F77NAME(daxpy) (N, 1.0/(beta*del_t*del_t), u1, 1, uddot1, 1);
+	F77NAME(daxpy) (N, -1.0/(beta*del_t*del_t), u0, 1, uddot1, 1);
+}
+
+void Build_udot(double udot[], double u0[], double uddot0[] , double uddot1[], double del_t, double gamma, int N)
+{
+	Zero_Vector(udot, N);
+
+	F77NAME(daxpy) (N, 1.0, u0, 1, udot, 1);
+	F77NAME(daxpy) (N, del_t*(1.0-gamma), uddot0, 1, udot, 1);
+	F77NAME(daxpy) (N, del_t*gamma, uddot1, 1, udot, 1);
 }

@@ -49,97 +49,91 @@ int main(int argc, char* argv[])
 	const double qx = 0.0;
 	const double qy = -1.0;
 	const double l = L/(double)Nx;
-	const double Fy = -1000.0;
-	const double rho = 7850.0e-09;
-	const int Ne = 6; 	
-	const int N = (Nx-1)*(Ne/2);											
+	const double Fy = -1000.0; 	
+	const int N = (Nx-1)*3;
+	const int ku = 4; 
+	const int kl = 4;
+							
+	double * F = new double[N]();
 	
 	// ################################### Find nodal displacements #########################################
 	// ######################################################################################################
     
    if (time_dependence == 0)
    {
-   		double * Ke = new double[Ne*Ne](); 				
-		double * Fe = new double[Ne](); 
-		double * K = new double[N*N]();					
-		double * F = new double[N]();
+		const int lda = 1 + 2*kl + ku;
 
-		int ku = 4; int kl = 4;
-		int m = ku+2*kl+1;
-		double * Kb = new double[m*N]();	
-   		Build_K_elemental(Ke, Ne, A, E, l, I);
-   		Build_global_matrix(K, Ke, Nx, N);	
-   		Print_Matrix(K, N, N);
-		cout << endl;
-		Banded_Storage(Kb, K, N, kl, ku);
-		Print_Matrix(Kb, m, N);
-		cout << endl;
-   		// Build_F_elemental(Fe, qx, qy, l, 1.0);
-   		// Build_F_global(F, Fe, Nx, Fy, 1.0, N);
+		double * Kb = new double[lda*N]();											
 
-   		// Matrix_System_Solver(K, F, N);
+		Build_K_global_banded(Kb, A, E, l, L, I, Nx, N, kl, ku, lda, kl);
+		Print_Matrix(Kb, N, lda);
+   		Build_F_global(F, Fy, qx, qy, 1.0, l, Nx, N);
+   		Banded_Matrix_Solver(Kb, F, N, lda, kl, ku);
    		// Write_Vector(F,N, l, L, "Task1");
 
-   		delete[] Ke;
-   		delete[] Fe;
-   		delete[] K;
-   		delete[] F;
    }
    else if (time_dependence == 1)
    {
+   		const double del_t = T/(double)Nt;
+   		const double rho = 7850.0e-09;
+   		
+     	double * Mb = new double[N]();
+     	double * u0 = new double[N]();
+        double * u1 = new double[N]();
+
+   		Build_M_global_banded(Mb, rho, A, l, Nx, N);
+
    		if (scheme == 0)
-   		{
-   			const double del_t = T/(double)Nt;
+   		{	
+   			const int lda = 1 + kl + ku;
 
-   			double * Ke = new double[Ne*Ne](); 				
-			double * Fe = new double[Ne](); 
-			double * Me = new double[Ne*Ne]();
-			double * K = new double[N*N]();
-			double * F = new double[N]();						
-   			double * M = new double[N*N]();
-   			double * u0 = new double[N]();
-   			double * u1 = new double[N]();
-   			double * S = new double[N]();
+   			double * Kb = new double[lda*N]();
+        	double * S = new double[N]();
    			double * d = new double[Nt]();
-   			
-   			Build_K_elemental(Ke, Ne, A, E, l, I);
-   			Build_global_matrix(K, Ke, Nx, N);
-   			Build_M_elemental(Me, Ne, rho, A, l);
-   			Build_global_matrix(M, Me, Nx, N);
 
+   			Build_K_global_banded(Kb, A, E, l, L, I, Nx, N, kl, ku, lda, 0);
+   			
    			for (int i = 0; i<Nt; ++i)
    			{
-   				Build_F_elemental(Fe, qx, qy, l, (double)(i+1)*del_t/T);
-   				Build_F_global(F, Fe, Nx, Fy, (double)(i+1)*del_t/T, N);
-   				Build_Multiplier(S, F, K, M, u0, u1, del_t, N);
+   				Build_F_global(F, Fy, qx, qy, (double)i*del_t/T, l, Nx, N);
+   				Build_Multiplier1(S, F, Kb, Mb, u0, u1, del_t, N, lda, kl, ku);
    				Copy_Vector(u1, u0, N);
-   				Matrix_System_Solver(M, S, N);
+   				Banded_Matrix_Solver(Mb, S, N, 1, 0, 0);
    				Copy_Vector(S, u1, N);
-   				// if (i % (Nt/10) == 0)
-   				// {
-   				// 	Write_Vector(u1,N, l, L, "Task2_Time_Step" + to_string(i));
-   				// }
    				d[i] = u1[(N-1)/2];					   				
    			}
    			Write_Point_Displacement(d, Nt, "Task2");
-   			// Print_Vector(u1, N);
-
-   			
-   			delete[] Fe;
-   			delete[] F;
-   			delete[] Ke;
-   			delete[] Me;
-   			delete[] K;
-   			delete[] M;
-   			delete[] u0;
-   			delete[] u1;
-   			delete[] S;
-   			delete[] d;
 
    		}
    		else if (scheme == 1)
    		{
-   			cout << "The scheme has not been defined" << endl;
+   			const int lda = 1 + 2*kl + ku;
+   			const double beta = 0.25;
+   			const double gamma = 0.5;
+
+   			double * udot = new double[N]();
+   			double * uddot0 = new double[N]();
+   			double * uddot1 = new double[N]();
+   			double * S = new double[N]();
+   			double * Kb = new double[lda*N]();
+
+   			Build_K_global_banded(Kb, A, E, l, L, I, Nx, N, kl, ku, lda, kl);
+   			Build_K_eff(Kb, Mb, del_t, beta, N, ku, kl, lda);
+   			
+   			for (int i = 0; i<Nt; ++i)
+   			{
+   				Build_F_global(F, Fy, qx, qy, (double)(i+1)*del_t/T, l, Nx, N);
+   				Build_Multiplier2(S, F, Mb, u0, udot, uddot0, del_t, beta, N);
+   				Banded_Matrix_Solver(Kb, S, N, lda, kl, ku);
+   				Copy_Vector(S, u1, N);
+   				Build_uddot(uddot1, uddot0, u1, u0, udot, beta, del_t, N);
+				Build_udot(udot, u0, uddot0, uddot1, del_t, gamma, N);
+				Copy_Vector(u1, u0, N);
+				Copy_Vector(uddot1, uddot0, N);	
+   			}
+   			Write_Vector(u1,N, l, L, "Task1");
+
+
    		}
    		else
    		{
@@ -150,7 +144,6 @@ int main(int argc, char* argv[])
    {
    		cout << "The time dependence has not been correctly specified." << endl;
    }
-
 
 	
 

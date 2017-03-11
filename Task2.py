@@ -19,8 +19,8 @@ y = solution[:, 1]
 plt.plot(x,y)
 
 
-plt.title('Displacment of point L/2 over time', fontsize=20)
-plt.xlabel('Time Steps [x/10000 seconds]', fontsize=14)
-plt.ylabel('Displacement in Vertical Direction [mm]', fontsize=14)
-plt.grid(True)
+# plt.title('Displacment of point L/2 over time', fontsize=20)
+# plt.xlabel('Time Steps [x/10000 seconds]', fontsize=14)
+# plt.ylabel('Displacement in Vertical Direction [mm]', fontsize=14)
+# plt.grid(True)
 plt.show()
