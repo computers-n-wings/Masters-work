@@ -9,19 +9,15 @@ void Zero_Vector(double a[], int N);
 
 void Copy_Vector(double a[], double b[], int N);
 
+void Print_Norm(double a[], int N);
+
 void Build_K_elemental(double Ke[], int n, double A, double E, double l, double I);
 
 void Build_K_global_banded(double Kb[], double A, double E, double l, double L, double I, int Nx, int N, int kl, int ku, int lda, int bfr);
 
-void Build_F_elemental(double Fe[], double qx, double qy, double l, double time);
-
 void Build_F_global(double F[], double Fy, double qx, double qy, double time, double l, int Nx, int N);
 
-void Build_M_elemental(double Me[], int Ne, double rho, double A, double l);
-
 void Build_M_global_banded(double Mb[], double rho, double A, double l, int Nx, int N);
-
-void Matrix_System_Solver(double A[], double b[], int N);
 
 void Banded_Matrix_Solver(double Ab[], double b[], int N,int lda, int kl, int ku);
 
@@ -39,10 +35,10 @@ void Build_Multiplier1(double S[], double F[], double Kb[], double M[], double u
 
 double RMS_error(double u1[], double S[], double M[], int N); 
 
-void Build_K_eff(double Kb[], double Mb[], double del_t, double beta, int N, int ku, int kl, int lda);
+void Build_Keff(double Keff[], double Mb[], double coeff1, double A, double E, double l, double L, double I, int Nx, int N, int kl, int ku, int lda, int bfr);
 
-void Build_Multiplier2(double S[], double F[], double Mb[], double u0[], double udot[], double uddot0[], double del_t, double beta, int N);
+void Build_Multiplier2(double S[], double Mb[], double F[], double u0[], double udot[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N);
 
-void Build_uddot(double uddot1[], double uddot0[], double u1[], double u0[], double udot[], double beta, double del_t, int N);
+void Build_udotdot(double udotdot1[], double u1[], double u0[], double udot[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N);
 
-void Build_udot(double udot[], double u0[], double uddot0[] , double uddot1[], double del_t, double gamma, int N);
+void Build_udot(double udot[], double u0[], double udotdot0[], double udotdot1[], double coeff4, double coeff5, int N);

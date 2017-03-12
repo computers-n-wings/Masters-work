@@ -6,7 +6,7 @@ OBJS = coursework.o myfunctions.o
 LDLIBS = -llapack -lblas -lboost_program_options
 
 # All the targets
-all: compile Task3 clean
+all: compile Task2 clean
 
 # This target will compile the files
 compile: $(OBJS) $(HDRS)
@@ -14,17 +14,18 @@ compile: $(OBJS) $(HDRS)
 
 # This target will run the executable with parameters for task 1
 Task1: compile
-	./compile --L 1.0e+04 --Nx 24 --A 1.2e+04 --I 1.44e+07 --E 2.1e+06 
-	# python $@.py &
+	./compile  
+	python $@.py &
 
 # This target will run the executable with parameters for task 2
 Task2: compile
-	./compile --time_dependence 1 --scheme 0 --T 1.0 --Nt 10000 
-	python $@.py &
+	./compile --Nx 24 --time_dependence 1 --scheme 0 --T 1.0 --Nt 10000 
+	python Task1.py &
+	# python $@.py &
 
 # This target will run the executable with parameters for task 3
 Task3: compile
-	./compile --Nx 24 --time_dependence 1 --scheme 1 --T 1.0 --Nt 10000
+	./compile --Nx 24 --time_dependence 1 --scheme 1 --T 1.0 --Nt 100
 	# python Task1.py &
 
 # This target will remove .o files and compile executable
