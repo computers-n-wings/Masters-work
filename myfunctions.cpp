@@ -412,33 +412,33 @@ void Build_Keff(double Keff[], double Mb[], double coeff1, double A, double E, d
 	}
 }
 
-void Build_Multiplier2(double S[], double Mb[], double F[], double u0[], double udot[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N)
+void Build_Multiplier2(double S[], double Mb[], double F[], double u0[], double udot0[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N)
 {
 	Zero_Vector(S, N);
 
 	for (int i = 0; i < N; ++i)
 	{
-		S[i] = F[i] + Mb[i]*(coeff1*u0[i] + coeff2*udot[i] + coeff3*udotdot0[i]);
+		S[i] = F[i] + Mb[i]*(coeff1*u0[i] + coeff2*udot0[i] + coeff3*udotdot0[i]);
 	}
 
 }
 
-void Build_udotdot(double udotdot1[], double u1[], double u0[], double udot[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N)
+void Build_udotdot(double udotdot1[], double u1[], double u0[], double udot0[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N)
 {
 	Zero_Vector(udotdot1, N);
 
 	for (int i = 0; i<N; ++i)
 	{
-		udotdot1[i] = coeff1*(u1[i] - u0[i]) - coeff2*udot[i] - coeff3*udotdot0[i];
+		udotdot1[i] = coeff1*(u1[i] - u0[i]) - coeff2*udot0[i] - coeff3*udotdot0[i];
 	}
 }
 
-void Build_udot(double udot[], double u0[], double udotdot0[], double udotdot1[], double coeff4, double coeff5, int N)
+void Build_udot(double udot1[], double udot0[], double udotdot0[], double udotdot1[], double coeff4, double coeff5, int N)
 {
-	Zero_Vector(udot, N);
+	Zero_Vector(udot1, N);
 
 	for (int i =0; i<N; ++i)
 	{
-		udot[i] = u0[i] + coeff4*udotdot0[i] + coeff5*udotdot1[i];
+		udot1[i] = udot0[i] + coeff4*udotdot0[i] + coeff5*udotdot1[i];
 	}
 }

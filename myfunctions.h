@@ -37,8 +37,8 @@ double RMS_error(double u1[], double S[], double M[], int N);
 
 void Build_Keff(double Keff[], double Mb[], double coeff1, double A, double E, double l, double L, double I, int Nx, int N, int kl, int ku, int lda, int bfr);
 
-void Build_Multiplier2(double S[], double Mb[], double F[], double u0[], double udot[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N);
+void Build_Multiplier2(double S[], double Mb[], double F[], double u0[], double udot0[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N);
 
-void Build_udotdot(double udotdot1[], double u1[], double u0[], double udot[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N);
+void Build_udotdot(double udotdot1[], double u1[], double u0[], double udot0[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N);
 
-void Build_udot(double udot[], double u0[], double udotdot0[], double udotdot1[], double coeff4, double coeff5, int N);
+void Build_udot(double udot1[], double udot0[], double udotdot0[], double udotdot1[], double coeff4, double coeff5, int N);

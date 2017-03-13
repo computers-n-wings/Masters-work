@@ -120,7 +120,8 @@ int main(int argc, char* argv[])
    			double * Keff = new double[lda*N]();
    			double * u0 = new double[N]();
    			double * u1 = new double[N]();
-   			double * udot = new double[N]();
+   			double * udot0 = new double[N]();
+        double * udot1 = new double[N]();
    			double * udotdot0 = new double[N]();
    			double * udotdot1 = new double[N]();
         double * S = new double[N]();
@@ -130,12 +131,13 @@ int main(int argc, char* argv[])
         for (int i = 0; i<Nt; ++i)
         {
             Build_F_global(F, Fy, qx, qy, (double)(i+1)*del_t/T, l, Nx, N);
-            Build_Multiplier2(S, Mb, F, u0, udot, udotdot0, coeff1, coeff2, coeff3, N);
+            Build_Multiplier2(S, Mb, F, u0, udot0, udotdot0, coeff1, coeff2, coeff3, N);
             Banded_Matrix_Solver(Keff, S, N, lda, kl, ku);
             Copy_Vector(S, u1, N);
-            Build_udotdot(udotdot1, u1, u0, udot, udotdot0, coeff1, coeff2, coeff3, N);
-            Build_udot(udot, u0, udotdot0, udotdot1, coeff4, coeff5, N);
+            Build_udotdot(udotdot1, u1, u0, udot0, udotdot0, coeff1, coeff2, coeff3, N);
+            Build_udot(udot1, udot0, udotdot0, udotdot1, coeff4, coeff5, N);
             Copy_Vector(u1, u0, N);
+            Copy_Vector(udot1, udot0, N);
             Copy_Vector(udotdot1, udotdot0, N);
         }
         Write_Vector(u0, N, l, L, "Task1");
@@ -143,7 +145,8 @@ int main(int argc, char* argv[])
    			delete[] Keff;
    			delete[] u0;
    			delete[] u1;
-   			delete[] udot;
+   			delete[] udot0;
+        delete[] udot1;
    			delete[] udotdot0;
    			delete[] udotdot1;
    		}
