@@ -4,6 +4,8 @@
 #include <string>
 using namespace std;
 
+#include <mpi.h>
+
 #define F77NAME(x) x##_
 extern "C" 
 {
@@ -55,11 +57,6 @@ void Zero_Vector(double a[], int N)
 	{
 		a[i] = 0.0;
 	}
-}
-
-void Copy_Vector(double a[], double b[], int N)
-{
-	F77NAME(dcopy) (N, a, 1, b, 1);
 }
 
 void Print_Norm(double a[], int N)
@@ -227,18 +224,18 @@ void Build_F_global(double F[], double Fy, double qx, double qy, double time, do
 
 void Build_M_global_banded(double Mb[], double rho, double A, double l, int Nx, int N)
 {
-	double * Me = new double[6*6]();
+	double * Me = new double[6]();
 
 	const double alpha = 0.0416667;
 	const double M1 = 0.5*rho*A*l;
    	const double M2 = rho*A*alpha*l*l*l;
 
-	Me[0] = M1;
-	Me[6 + 1] = M1;
-	Me[2*6 + 2] = M2;
-	Me[3*6 + 3] = M1;
-	Me[4*6 + 4] = M1;
-	Me[5*6 + 5] = M2;
+   	Me[0] = M1;
+	Me[1] = M1;
+	Me[2] = M2;
+	Me[3] = M1;
+	Me[4] = M1;
+	Me[5] = M2;
 
 	Zero_Vector(Mb, N);
 
@@ -248,21 +245,21 @@ void Build_M_global_banded(double Mb[], double rho, double A, double l, int Nx, 
 		{
 			for (int i = 0; i<3; ++i)
 			{
-				Mb[i] += Me[(i+3)*6+(i+3)];
+				Mb[i] += Me[i+3];
 			}
 		}
 		else if (k == Nx-1)
 		{
 			for (int i = 0; i<3; ++i)
 			{
-				Mb[3*(k-1)+i] += Me[i*6+i];
+				Mb[3*(k-1)+i] += Me[i];
 			}
 		}
 		else
 		{
 			for (int i = 0; i<6; ++i)
 			{
-				Mb[3*(k-1) +i] += Me[i*6+i];
+				Mb[3*(k-1) +i] += Me[i];
 			}
 		}
 	}
@@ -273,7 +270,7 @@ void Build_M_global_banded(double Mb[], double rho, double A, double l, int Nx, 
 void Banded_Matrix_Solver(double Ab[], double b[], int N, int lda, int kl, int ku)
 {
 	double * Ab_temp = new double[lda*N]();
-	Copy_Vector(Ab, Ab_temp, lda*N);
+	F77NAME(dcopy)(lda*N, Ab, 1, Ab_temp,1);
 
 	const int nrhs = 1;
 	int info = 0;
@@ -326,20 +323,14 @@ void Write_Point_Displacement(double F[], int N, string mystring)
 	File.close();
 }
 
-void Build_Fn(double F[], double Fn[], double del_t, int N)
+void Build_Multiplier1(double S[], double F[], double Kb[], double Mb[], double u0[], double u1[], double del_t, int N, int lda, int kl, int ku)
 {
-	Zero_Vector(Fn, N);
-	Copy_Vector(F, Fn, N);
+	Zero_Vector(S, N);
 
-	F77NAME(dscal) (N, del_t*del_t, Fn, 1);
-}
-
-void Build_Un1_Multiplier(double Un1[], double Kb[], double Mb[], double u1[], int N, int lda, double del_t, int kl, int ku)
-{
-	Zero_Vector(Un1, N);
-
+	double * temp = new double[N]();
 	double * K_temp = new double[lda*N]();
-	Copy_Vector(Kb, K_temp, lda*N);
+
+	F77NAME(dcopy) (lda*N, Kb, 1, K_temp, 1);
 
 	F77NAME(dscal) (lda*N, del_t*del_t, K_temp, 1);
 
@@ -349,48 +340,22 @@ void Build_Un1_Multiplier(double Un1[], double Kb[], double Mb[], double u1[], i
 		K_temp[pnt1] += -2.0*Mb[i];
 	}
 
-	F77NAME(dgbmv) ('N', N, N, kl, ku, 1.0, K_temp, lda, u1, 1, 0.0, Un1, 1);
+	F77NAME(dgbmv) ('N', N, N, kl, ku, 1.0, K_temp, lda, u1, 1, 0.0, temp, 1);
 
+	for (int i = 0; i<N; ++i)
+	{
+		S[i] = del_t*del_t*F[i] - temp[i] - Mb[i]*u0[i];
+	}
+
+	delete[] temp;
 	delete[] K_temp;
-}
-
-void Build_Un0_Multiplier(double Un0[], double Mb[], double u0[], int N)
-{
-	Zero_Vector(Un0, N);
-
-	for (int i = 0; i<N; ++i)
-	{
-		Un0[i] = Mb[i]*u0[i];
-	}
-}
-
-void Build_Multiplier1(double S[], double F[], double Kb[], double Mb[], double u0[], double u1[], double del_t, int N, int lda, int kl, int ku)
-{
-	Zero_Vector(S, N);
-
-	double * Fn = new double[N]();
-	double * Un0 = new double[N]();
-	double * Un1 = new double[N]();
-	
-	Build_Fn(F, Fn, del_t, N);
-	Build_Un1_Multiplier(Un1, Kb, Mb, u1, N, lda, del_t, kl, ku);
-	Build_Un0_Multiplier(Un0, Mb, u0, N);
-
-	for (int i = 0; i<N; ++i)
-	{
-		S[i] = Fn[i] - Un1[i] - Un0[i];
-	}
-
-	delete[] Fn;
-	delete[] Un1;
-   	delete[] Un0;
 }
 
 double RMS_error(double u1[], double S[], double M[], int N)
 {
 	double * res = new double[N]();
 	double * M_temp = new double[N]();
-	Copy_Vector(M, M_temp, N);
+	F77NAME(dcopy)(N, M, 1, M_temp,1);
 
 	F77NAME(dgbmv) ('N', N, N, 0, 0, 1.0, M_temp, 1, u1, 1, 0.0, res, 1);
 	F77NAME(daxpy) (N, -1.0, S, 1, res, 1);
@@ -441,4 +406,63 @@ void Build_udot(double udot1[], double udot0[], double udotdot0[], double udotdo
 	{
 		udot1[i] = udot0[i] + coeff4*udotdot0[i] + coeff5*udotdot1[i];
 	}
+}
+
+void Build_M_global_banded_MPI(double Mbloc[], double rho, double A, double l, int Nxloc, int Nloc, int size, int rank)
+{
+	double * Me = new double[6]();
+
+	const double alpha = 0.0416667;
+	const double M1 = 0.5*rho*A*l;
+   	const double M2 = rho*A*alpha*l*l*l;
+
+   	Me[0] = M1;
+	Me[1] = M1;
+	Me[2] = M2;
+	Me[3] = M1;
+	Me[4] = M1;
+	Me[5] = M2;
+
+	Zero_Vector(Mbloc, Nloc);
+
+	for (int k = 0; k<Nxloc; ++k)
+	{
+		if (rank == 0)
+		{
+			if (k == 0)
+			{
+				for (int i = 0; i<3; ++i)
+				{
+					Mbloc[i] += Me[i+3];
+				}
+			}
+			else
+			{
+				for (int i = 0; i<6; ++i)
+				{
+					Mbloc[3*(k-1) +i] += Me[i];
+				}	
+			}
+		}
+		else if (rank == size - 1)
+		{
+			if (k == Nxloc-1)
+			{
+				for (int i = 0; i<3; ++i)
+				{
+					Mbloc[3*(k-1)+i] += Me[i];
+				}
+			}
+			else
+			{
+				for (int i = 0; i<6; ++i)
+				{
+					Mbloc[3*(k-1) +i] += Me[i];
+				}	
+			}
+		}
+	}
+	Print_Matrix(Mbloc, Nloc, 1);
+	cout << endl;
+	delete[] Me;
 }

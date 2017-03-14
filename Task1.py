@@ -5,10 +5,10 @@ solution = np.loadtxt("Task1.txt")
 x = solution[:,0]
 y = solution[:,1]
 
-qy = 1.0
-L = 10000.0
-E = 2.1e+06
-I = 1.44e+07
+qy = 1000.0
+L = 10.0
+E = 2.1e+11
+I = 1.44e-05
 Fy = 1.0e+03
 
 u = np.zeros_like(x)

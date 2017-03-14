@@ -25,12 +25,6 @@ void Write_Vector(double F[], int N, double l, double L, string mystring);
 
 void Write_Point_Displacement(double F[], int N, string mystring);
 
-void Build_Fn(double F[], double Fn[], double del_t, int N);
-
-void Build_Un1_Multiplier(double Un1[], double Kb[], double Mb[], double u1[], int N, int lda, double del_t, int kl, int ku);
-
-void Build_Un0_Multiplier(double Un0[], double Mb[], double u0[], int N);
-
 void Build_Multiplier1(double S[], double F[], double Kb[], double M[], double u0[], double u1[], double del_t, int N, int lda, int kl, int ku);
 
 double RMS_error(double u1[], double S[], double M[], int N); 
@@ -42,3 +36,5 @@ void Build_Multiplier2(double S[], double Mb[], double F[], double u0[], double 
 void Build_udotdot(double udotdot1[], double u1[], double u0[], double udot0[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N);
 
 void Build_udot(double udot1[], double udot0[], double udotdot0[], double udotdot1[], double coeff4, double coeff5, int N);
+
+void Build_M_global_banded_MPI(double Mbloc[], double rho, double A, double l, int Nxloc, int Nloc, int size, int rank);

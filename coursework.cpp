@@ -2,11 +2,14 @@
 #include <cmath>
 #include <string>
 #include "myfunctions.h"
+#include "solvers.h"
 using namespace std;
+
+#include <mpi.h>
 
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
-// int main()
+
 int main(int argc, char* argv[])
 {
 	po::options_description desc("Solving for displacement along a beam");
@@ -21,6 +24,7 @@ int main(int argc, char* argv[])
         ("scheme", po::value<int>(), "Integration scheme: 0 for explicit, 1 for implicit")
         ("T", po::value<double>(), "Number of seconds if dynamic problem")
         ("Nt", po::value<int>(), "Number of time steps if dynamic problem")
+        ("parallel", po::value<int>(), "Parallelization: 0 for serial, 1 for parallel")
         ("help", 					"Produce help message");
 
         po::variables_map vm;
@@ -45,6 +49,7 @@ int main(int argc, char* argv[])
     	const int scheme = vm.count("scheme") ? vm["scheme"].as<int>() : 0;
     	const double T = vm.count("T") ? vm["T"].as<double>() : 1.0;
     	const int Nt = vm.count("Nt") ? vm["Nt"].as<int>() : 10000;
+      const int parallel = vm.count("parallel") ? vm["parallel"].as<int>() : 0;
 
     // ########################################## Parameters ################################################
 	// ######################################################################################################
@@ -55,100 +60,48 @@ int main(int argc, char* argv[])
 	const int N = (Nx-1)*3;
 	const int ku = 4; 
 	const int kl = 4;
-							
-	double * F = new double[N]();
 	
 	// ################################### Find nodal displacements #########################################
 	// ######################################################################################################
     
    if (time_dependence == 0)
    {
-		const int lda = 1 + 2*kl + ku;
-
-		double * Kb = new double[lda*N]();											
-
-		Build_K_global_banded(Kb, A, E, l, L, I, Nx, N, kl, ku, lda, kl);
-   	Build_F_global(F, Fy, qx, qy, 1.0, l, Nx, N);
-   	Banded_Matrix_Solver(Kb, F, N, lda, kl, ku);
-   	Write_Vector(F,N, l, L, "Task1");
-
+      Static_Solver(A, E, I, L, l, qx, qy, Fy, Nx, ku, kl, N);
    }
    else if (time_dependence == 1)
    {
-   		const double del_t = T/(double)Nt;
-   		
-     	double * Mb = new double[N]();
-     	double * u0 = new double[N]();
-      double * u1 = new double[N]();
-
-   		Build_M_global_banded(Mb, rho, A, l, Nx, N);
-
-   		if (scheme == 0)
-   		{	
-   			const int lda = 1 + kl + ku;
-
-   			double * Kb = new double[lda*N]();
-        double * S = new double[N]();
-   			double * d = new double[Nt]();
-
-   			Build_K_global_banded(Kb, A, E, l, L, I, Nx, N, kl, ku, lda, 0);
-   			
-   			for (int i = 0; i<Nt; ++i)
-   			{
-   				Build_F_global(F, Fy, qx, qy, (double)i*del_t/T, l, Nx, N);
-   				Build_Multiplier1(S, F, Kb, Mb, u0, u1, del_t, N, lda, kl, ku);
-   				Copy_Vector(u1, u0, N);
-   				Banded_Matrix_Solver(Mb, S, N, 1, 0, 0);
-   				Copy_Vector(S, u1, N);
-   				d[i] = u1[(N-1)/2];					   				
-   			}
-   			Write_Vector(u1,N, l, L, "Task1");
-   			// Write_Point_Displacement(d, Nt, "Task2");
-
-   		}
+      if (scheme == 0)
+      {
+        if (parallel == 0)
+        {
+          Dynamic_Solver_1(A, E, I, L, l, qx, qy, Fy, rho, T, Nt, Nx, ku, kl, N);
+        }
+        else if (parallel == 1)
+        {
+          // Problem with sending the number of processors to solver
+          // Cannot convert from char to int
+          int np = (int)argv[0];
+          Dynamic_Solver_MPI_1(A, E, I, L, l, qx, qy, Fy, rho, T, Nt, Nx, ku, kl, N, np);
+        }
+        else
+        {
+          cout << "The parallelization has not been correctly specified" << endl;
+        }          
+      }
    		else if (scheme == 1)
    		{
-   			const int lda = 1 + 2*kl + ku;
-   			const double beta = 0.25;
-   			const double gamma = 0.5;
-   			const double coeff1 = 1/(beta*del_t*del_t);
-   			const double coeff2 = 1/(beta*del_t);
-   			const double coeff3 = (1-2*beta)/(2*beta);
-   			const double coeff4 = (1-gamma)*del_t;
-   			const double coeff5 = gamma*del_t;
-
-   			double * Keff = new double[lda*N]();
-   			double * u0 = new double[N]();
-   			double * u1 = new double[N]();
-   			double * udot0 = new double[N]();
-        double * udot1 = new double[N]();
-   			double * udotdot0 = new double[N]();
-   			double * udotdot1 = new double[N]();
-        double * S = new double[N]();
-
-   			Build_Keff(Keff, Mb, coeff1, A, E, l, L, I, Nx, N, kl, ku, lda, kl);
-
-        for (int i = 0; i<Nt; ++i)
+        if (parallel == 0)
         {
-            Build_F_global(F, Fy, qx, qy, (double)(i+1)*del_t/T, l, Nx, N);
-            Build_Multiplier2(S, Mb, F, u0, udot0, udotdot0, coeff1, coeff2, coeff3, N);
-            Banded_Matrix_Solver(Keff, S, N, lda, kl, ku);
-            Copy_Vector(S, u1, N);
-            Build_udotdot(udotdot1, u1, u0, udot0, udotdot0, coeff1, coeff2, coeff3, N);
-            Build_udot(udot1, udot0, udotdot0, udotdot1, coeff4, coeff5, N);
-            Copy_Vector(u1, u0, N);
-            Copy_Vector(udot1, udot0, N);
-            Copy_Vector(udotdot1, udotdot0, N);
+          Dynamic_Solver_2(A, E, I, L, l, qx, qy, Fy, rho, T, Nt, Nx, ku, kl, N);
         }
-        Write_Vector(u0, N, l, L, "Task1");
-
-   			delete[] Keff;
-   			delete[] u0;
-   			delete[] u1;
-   			delete[] udot0;
-        delete[] udot1;
-   			delete[] udotdot0;
-   			delete[] udotdot1;
+        else if (parallel == 1)
+        {
+          cout << endl;
+        }
+        else
+        {
+          cout << "The parallelization has not been correctly specified" << endl;
+        }                
    		}
    		else
    		{
