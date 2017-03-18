@@ -31,15 +31,35 @@ extern "C"
                     double* y, const int& incy);
 }	
 
-void Print_Matrix(double A[], int n, int m) 
+void Print_Matrix(double A[], int n, int m)
 {
-	for (int i = 0; i<m; ++i)
+	for (int i =0; i<m; ++i)
 	{
 		for (int j = 0; j<n; ++j)
 		{
-			cout << setprecision(3) << setw(15) << A[j*m+i];
-		} 
+			cout << setprecision(2) << setw(10) << A[j*m+i];
+		}
 		cout << endl;
+	}
+}
+
+void Print_Matrix_Parallel(double A[], int n, int m, int size, int rank) 
+{	
+	for (int i = 0; i < size; ++i)
+	{	
+		if (rank==i)
+		{	
+			cout << "Rank " << i << endl;
+			for (int i = 0; i<m; ++i)
+			{
+				for (int j = 0; j<n; ++j)
+				{
+					cout << setprecision(2) << setw(10) << A[j*m+i];
+				} 
+				cout << endl;
+			}
+		}
+		MPI_Barrier(MPI_COMM_WORLD);
 	}
 }
 
@@ -48,6 +68,22 @@ void Print_Vector(double b[], int n)
 	for (int i = 0; i<n; ++i)
 	{
 		cout << setw(15) << b[i] << endl;
+	}
+}
+
+void Print_Vector_Parallel(double b[], int n, int size, int rank)
+{
+	for (int i = 0; i < size; ++i)
+	{
+		if (rank == i)
+		{
+			cout << "Rank " << i << endl;
+			for (int i = 0; i<n; ++i)
+			{
+				cout << setw(15) << b[i] << endl;
+			}
+		}
+		MPI_Barrier(MPI_COMM_WORLD);
 	}
 }
 
@@ -172,6 +208,19 @@ void Build_K_global_banded(double Kb[], double A, double E, double l, double L, 
 			}
 		}
 		delete[] Ke;
+}
+
+void Build_K_global_banded_altered(double Kb[], double Mb[], double A, double E, double l, double L, double I, double del_t, int Nx, int N, int kl, int ku, int lda, int bfr)
+{
+	Build_K_global_banded(Kb, A, E, l, L, I, Nx, N, kl, ku, lda, 0);
+
+	F77NAME(dscal) (lda*N, del_t*del_t, Kb, 1);
+
+	for (int i = 0; i < N; ++i)
+	{
+		int pnt1 = i*lda+ku;
+		Kb[pnt1] += -2.0*Mb[i];
+	}
 }
 
 void Build_F_global(double F[], double Fy, double qx, double qy, double time, double l, int Nx, int N)
@@ -323,32 +372,21 @@ void Write_Point_Displacement(double F[], int N, string mystring)
 	File.close();
 }
 
-void Build_Multiplier1(double S[], double F[], double Kb[], double Mb[], double u0[], double u1[], double del_t, int N, int lda, int kl, int ku)
+void Build_Multiplier1(double F[], double Kb[], double Mb[], double u0[], double u1[], double del_t, int N, int lda, int kl, int ku)
 {
-	Zero_Vector(S, N);
-
 	double * temp = new double[N]();
-	double * K_temp = new double[lda*N]();
 
-	F77NAME(dcopy) (lda*N, Kb, 1, K_temp, 1);
-
-	F77NAME(dscal) (lda*N, del_t*del_t, K_temp, 1);
-
-	for (int i = 0; i < N; ++i)
-	{
-		int pnt1 = i*lda+ku;
-		K_temp[pnt1] += -2.0*Mb[i];
-	}
-
-	F77NAME(dgbmv) ('N', N, N, kl, ku, 1.0, K_temp, lda, u1, 1, 0.0, temp, 1);
+	F77NAME(dgbmv) ('N', N, N, kl, ku, 1.0, Kb, lda, u1, 1, 0.0, temp, 1);
 
 	for (int i = 0; i<N; ++i)
 	{
-		S[i] = del_t*del_t*F[i] - temp[i] - Mb[i]*u0[i];
+		F[i] = del_t*del_t*F[i] - temp[i] - Mb[i]*u0[i];
 	}
 
 	delete[] temp;
-	delete[] K_temp;
+
+	Print_Vector(F, N);
+	cout << endl;
 }
 
 double RMS_error(double u1[], double S[], double M[], int N)
@@ -408,7 +446,7 @@ void Build_udot(double udot1[], double udot0[], double udotdot0[], double udotdo
 	}
 }
 
-void Build_M_global_banded_MPI(double Mbloc[], double rho, double A, double l, int Nxloc, int Nloc, int size, int rank)
+void Build_M_global_banded_MPI(double Mbloc[], double rho, double A, double l, int Nx, int Nxloc, int Nloc, int size, int rank)
 {
 	double * Me = new double[6]();
 
@@ -423,46 +461,138 @@ void Build_M_global_banded_MPI(double Mbloc[], double rho, double A, double l, i
 	Me[4] = M1;
 	Me[5] = M2;
 
-	Zero_Vector(Mbloc, Nloc);
-
 	for (int k = 0; k<Nxloc; ++k)
 	{
-		if (rank == 0)
+		if (k == 0)
 		{
-			if (k == 0)
+			for (int i = 0; i<3; ++i)
 			{
-				for (int i = 0; i<3; ++i)
-				{
-					Mbloc[i] += Me[i+3];
-				}
-			}
-			else
-			{
-				for (int i = 0; i<6; ++i)
-				{
-					Mbloc[3*(k-1) +i] += Me[i];
-				}	
+				Mbloc[i] += Me[i+3];
 			}
 		}
-		else if (rank == size - 1)
+		else if (k == Nxloc - 1)
 		{
-			if (k == Nxloc-1)
+			// continue;
+			for (int i = 0; i<3; ++i)
 			{
-				for (int i = 0; i<3; ++i)
-				{
-					Mbloc[3*(k-1)+i] += Me[i];
-				}
+				Mbloc[3*(k-1)+i] += Me[i];
 			}
-			else
+		}
+		else
+		{
+			for (int i = 0; i<6; ++i)
 			{
-				for (int i = 0; i<6; ++i)
-				{
-					Mbloc[3*(k-1) +i] += Me[i];
-				}	
-			}
+				Mbloc[3*(k-1) +i] += Me[i];
+			}	
 		}
 	}
-	Print_Matrix(Mbloc, Nloc, 1);
-	cout << endl;
+
 	delete[] Me;
+
+	MPI_Barrier(MPI_COMM_WORLD);
+}
+
+void Build_K_global_banded_MPI(double Kbloc[], double A, double E, double l, double L, double I, int Nx, int Nxloc, int N, int kl, int ku, int lda, int bfr, int size, int rank)
+{
+	double * Ke = new double[6*6]();
+	Build_K_elemental(Ke, 6, A, E, l, I);
+
+	for (int k = 0; k < Nxloc; ++k)
+	{
+		if (k == 0)
+		{
+			for (int i = 0; i<3; ++i)
+			{
+				int pnt1 = (3*k+i)*lda+bfr+ku;
+				int pnt2 = (i+3)*6+(i+3);
+				int bnd1 = 3-i;
+				int bnd2 = i+1;
+				Kbloc[pnt1] += Ke[pnt2];
+
+				for (int j = 1; j<bnd1; ++j)
+				{
+					Kbloc[pnt1+j] += Ke[pnt2+j];
+				}
+				for (int l = 1; l < bnd2; ++l)
+				{
+					Kbloc[pnt1-l] += Ke[pnt2-l];
+				}
+			}
+		}
+		else if (k == Nxloc - 1)
+		{
+			for (int i = 0; i<3; ++i)
+			{
+				int pnt1 = (3*(k-1)+i)*lda+bfr+ku;
+				int pnt2 = i*6+i;
+				int bnd1 = 3-i;
+				int bnd2 = i+1;
+
+				Kbloc[pnt1] += Ke[pnt2];
+
+				for (int j = 1; j<bnd1; ++j)
+				{
+					Kbloc[pnt1+j] += Ke[pnt2+j];
+				}
+				for (int l = 1; l < bnd2; ++l)
+				{
+					Kbloc[pnt1-l] += Ke[pnt2-l];
+				}
+			}
+		}
+		else
+		{
+			for (int i = 0; i<6; ++i)
+			{	
+			int pnt1 = (3*(k-1)+i)*lda+bfr+ku;
+			int pnt2 = i*6+i;
+				int bnd1 = 6-i;
+				int bnd2 = i+1;
+					
+				Kbloc[pnt1] += Ke[pnt2];
+
+				for (int j = 1; j<bnd1; ++j)
+				{
+					Kbloc[pnt1+j] += Ke[pnt2+j];
+				}
+				for (int l = 1; l < bnd2; ++l)
+				{
+					Kbloc[pnt1-l] += Ke[pnt2-l];
+				}
+			}
+		}
+	}	
+	delete[] Ke;
+
+	MPI_Barrier(MPI_COMM_WORLD);
+}
+
+void Build_K_global_banded_altered_MPI(double Kbloc[], double Mbloc[], double A, double E, double l, double L, double I, double del_t, int Nx, int Nxloc, int N, int Nloc, int kl, int ku, int lda, int bfr, int size, int rank)
+{
+	Build_K_global_banded_MPI(Kbloc, A, E, l, L, I, Nx, Nxloc, N, kl, ku, lda, 0, size, rank);
+
+	F77NAME(dscal) (lda*Nloc, del_t*del_t, Kbloc, 1);
+
+	for (int i = 0; i < Nloc; ++i)
+	{
+		int pnt1 = i*lda+ku;
+		Kbloc[pnt1] += -2.0*Mbloc[i];
+	}
+
+	MPI_Barrier(MPI_COMM_WORLD);
+}
+
+void Build_Multiplier1_MPI(double Floc[], double Kbloc[], double Mbloc[], double u0loc[], double u1loc[], double del_t, int N, int Nloc, int lda, int kl, int ku, int size, int rank)
+{
+	double * temp = new double[N]();
+
+	F77NAME(dgbmv) ('N', N, N, kl, ku, 1.0, Kbloc, lda, u1loc, 1, 0.0, temp, 1);
+
+	for (int i = 0; i<N; ++i)
+	{
+		Floc[i] = del_t*del_t*Floc[i] - temp[i] - Mbloc[i]*u0loc[i];
+	}
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	delete[] temp;
 }

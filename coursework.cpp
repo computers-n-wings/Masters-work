@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cmath>
 #include <string>
+#include <typeinfo>
 #include "myfunctions.h"
 #include "solvers.h"
 using namespace std;
@@ -78,10 +79,16 @@ int main(int argc, char* argv[])
         }
         else if (parallel == 1)
         {
-          // Problem with sending the number of processors to solver
-          // Cannot convert from char to int
-          int np = (int)argv[0];
-          Dynamic_Solver_MPI_1(A, E, I, L, l, qx, qy, Fy, rho, T, Nt, Nx, ku, kl, N, np);
+          int size;
+          int rank;
+
+          MPI_Init(&argc, &argv);
+          MPI_Comm_size(MPI_COMM_WORLD, &size);
+          MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+          Dynamic_Solver_MPI_1(A, E, I, L, l, qx, qy, Fy, rho, T, Nt, Nx, ku, kl, N, size, rank);
+
+          MPI_Finalize();
         }
         else
         {
@@ -112,8 +119,6 @@ int main(int argc, char* argv[])
    {
    		cout << "The time dependence has not been correctly specified." << endl;
    }
-
-	
 
 	return 0;
 

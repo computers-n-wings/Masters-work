@@ -20,20 +20,20 @@ Task1: compile
 
 # This target will run the executable with parameters for task 2
 Task2: compile
-	mpirun -np 1 ./run --Nx 24 --time_dependence 1 --scheme 0 --T 1.0 --Nt 10000 
-	python $@.py &
+	mpirun -np 1 ./run --Nx 4 --time_dependence 1 --scheme 0 --T 1.0 --Nt 5 
+	# python $@.py &
 
 # This target will run the executable with parameters for task 3
 Task3: compile
-	mpirun -np 1 ./run --time_dependence 1 --scheme 1 --T 1.0 --Nt 1000
-	python Task1.py &
+	mpirun -np 1 ./run --Nx 6 --time_dependence 1 --scheme 1 --T 1.0 --Nt 1000
+	# python Task1.py &
 
 Task4: compile
-	mpirun -np 2 ./run --time_dependence 1 --scheme 0 --parallel 1 --T 1.0 --Nt 1000
+	mpirun -np 2 ./run --Nx 8 --time_dependence 1 --scheme 0 --parallel 1 --T 1.0 --Nt 5
 
 # This target will remove .o files and compile executable
 clean:
-	-rm -f *.o  compile
+	-rm -f *.o run
 
 %.o: %.cpp $(HDRS)
 	$(CCP) $(CXXFLAGS) -o $@ -c $<
