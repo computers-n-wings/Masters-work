@@ -49,4 +49,6 @@ void Build_K_global_banded_MPI(double Kbloc[], double A, double E, double l, dou
 
 void Build_K_global_banded_altered_MPI(double Kbloc[], double Mbloc[], double A, double E, double l, double L, double I, double del_t, int Nx, int Nxloc, int N, int Nloc, int kl, int ku, int lda, int bfr, int size, int rank);
 
+void Build_F_global_MPI(double Floc[], double Fy, double qx, double qy, double time, double l, int Nx, int Nxloc, int N, int Nloc, int size, int rank);
+
 void Build_Multiplier1_MPI(double F[], double Kbloc[], double Mbloc[], double u0loc[], double u1loc[], double del_t, int N, int Nloc, int lda, int kl, int ku, int size, int rank);

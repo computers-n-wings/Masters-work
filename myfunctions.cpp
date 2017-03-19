@@ -385,8 +385,6 @@ void Build_Multiplier1(double F[], double Kb[], double Mb[], double u0[], double
 
 	delete[] temp;
 
-	Print_Vector(F, N);
-	cout << endl;
 }
 
 double RMS_error(double u1[], double S[], double M[], int N)
@@ -472,7 +470,6 @@ void Build_M_global_banded_MPI(double Mbloc[], double rho, double A, double l, i
 		}
 		else if (k == Nxloc - 1)
 		{
-			// continue;
 			for (int i = 0; i<3; ++i)
 			{
 				Mbloc[3*(k-1)+i] += Me[i];
@@ -582,13 +579,68 @@ void Build_K_global_banded_altered_MPI(double Kbloc[], double Mbloc[], double A,
 	MPI_Barrier(MPI_COMM_WORLD);
 }
 
+void Build_F_global_MPI(double Floc[], double Fy, double qx, double qy, double time, double l, int Nx, int Nxloc, int N, int Nloc, int size, int rank)
+{
+	double * Fe = new double[6]();
+	
+	const double F1 = time*qx*l/2.0; 							
+	const double F2 = time*qy*l/2.0; 							
+	const double F3 = time*qy*l*l/12.0;
+
+	Fe[0] = F1;
+	Fe[1] = F2;
+	Fe[2] = F3;
+	Fe[3] = F1;
+	Fe[4] = F2;
+	Fe[5] = -F3;
+
+	Zero_Vector(Floc, Nloc);
+
+	for (int k = 0; k<Nxloc; ++k)
+	{
+		if (k == 0)
+		{
+			Floc[0] = Fe[3];
+			Floc[1] = Fe[4];
+			Floc[2] = Fe[5];
+		}
+		else if (k == Nxloc-1)
+		{
+			for (int i = 0; i<3; ++i)
+			{
+				Floc[3*(k-1)+i] += Fe[i];
+			}
+		}
+		else
+		{
+			for (int i = 0; i<6; ++i)
+			{
+				Floc[3*(k-1) + i] += Fe[i];
+			}
+		}
+	}
+
+	if (rank == 0)
+	{
+		Floc[3*(Nx/2-1) + 1] += time*Fy;
+	}
+	if (rank == 1)
+	{
+		Floc[3 + 1] += time*Fy;
+	}
+
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	delete[] Fe;
+}
+
 void Build_Multiplier1_MPI(double Floc[], double Kbloc[], double Mbloc[], double u0loc[], double u1loc[], double del_t, int N, int Nloc, int lda, int kl, int ku, int size, int rank)
 {
-	double * temp = new double[N]();
+	double * temp = new double[Nloc]();
 
-	F77NAME(dgbmv) ('N', N, N, kl, ku, 1.0, Kbloc, lda, u1loc, 1, 0.0, temp, 1);
+	F77NAME(dgbmv) ('N', Nloc, Nloc, kl, ku, 1.0, Kbloc, lda, u1loc, 1, 0.0, temp, 1);
 
-	for (int i = 0; i<N; ++i)
+	for (int i = 0; i<Nloc; ++i)
 	{
 		Floc[i] = del_t*del_t*Floc[i] - temp[i] - Mbloc[i]*u0loc[i];
 	}
