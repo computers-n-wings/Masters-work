@@ -29,6 +29,17 @@ extern "C"
                     const double& alpha, const double* a, const int& lda,
                     const double* x, const int& incx, const double& beta,
                     double* y, const int& incy);
+	void F77NAME(pdgbsv)(const int& n, const int& kl, const int& ku, 
+                const int& nrhs, const double * A, const int& ja,
+                const int* desca, int * ipiv, double * B, const int& ib,
+                const int* descb, double* work, const int& lwork, 
+                int* info);
+	void Cblacs_get(int, int, int*);
+	void Cblacs_pinfo(int*, int*);
+	void Cblacs_gridinit(int*, char*, int, int);
+	void Cblacs_gridinfo(int, int*, int*, int*, int*);
+	void Cblacs_exit(int);
+	void Cblacs_gridexit(int);
 }	
 
 void Print_Matrix(double A[], int n, int m)
@@ -212,13 +223,13 @@ void Build_K_global_banded(double Kb[], double A, double E, double l, double L, 
 
 void Build_K_global_banded_altered(double Kb[], double Mb[], double A, double E, double l, double L, double I, double del_t, int Nx, int N, int kl, int ku, int lda, int bfr)
 {
-	Build_K_global_banded(Kb, A, E, l, L, I, Nx, N, kl, ku, lda, 0);
+	Build_K_global_banded(Kb, A, E, l, L, I, Nx, N, kl, ku, lda, bfr);
 
 	F77NAME(dscal) (lda*N, del_t*del_t, Kb, 1);
 
 	for (int i = 0; i < N; ++i)
 	{
-		int pnt1 = i*lda+ku;
+		int pnt1 = i*lda+ku+bfr;
 		Kb[pnt1] += -2.0*Mb[i];
 	}
 }
@@ -384,7 +395,6 @@ void Build_Multiplier1(double F[], double Kb[], double Mb[], double u0[], double
 	}
 
 	delete[] temp;
-
 }
 
 double RMS_error(double u1[], double S[], double M[], int N)
@@ -413,34 +423,31 @@ void Build_Keff(double Keff[], double Mb[], double coeff1, double A, double E, d
 	}
 }
 
-void Build_Multiplier2(double S[], double Mb[], double F[], double u0[], double udot0[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N)
+void Build_Multiplier2(double u1[], double F[], double Mb[], double u0[], double udot[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N)
 {
-	Zero_Vector(S, N);
+	Zero_Vector(u1, N);
 
 	for (int i = 0; i < N; ++i)
 	{
-		S[i] = F[i] + Mb[i]*(coeff1*u0[i] + coeff2*udot0[i] + coeff3*udotdot0[i]);
+		u1[i] = F[i] + Mb[i]*(coeff1*u0[i] + coeff2*udot[i] + coeff3*udotdot0[i]);
 	}
-
 }
 
-void Build_udotdot(double udotdot1[], double u1[], double u0[], double udot0[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N)
+void Build_udotdot(double udotdot1[], double u1[], double u0[], double udot[], double udotdot0[], double coeff1, double coeff2, double coeff3, int N)
 {
 	Zero_Vector(udotdot1, N);
 
 	for (int i = 0; i<N; ++i)
 	{
-		udotdot1[i] = coeff1*(u1[i] - u0[i]) - coeff2*udot0[i] - coeff3*udotdot0[i];
+		udotdot1[i] = coeff1*(u1[i] - u0[i]) - coeff2*udot[i] - coeff3*udotdot0[i];
 	}
 }
 
-void Build_udot(double udot1[], double udot0[], double udotdot0[], double udotdot1[], double coeff4, double coeff5, int N)
+void Build_udot(double udot[], double udotdot0[], double udotdot1[], double coeff4, double coeff5, int N)
 {
-	Zero_Vector(udot1, N);
-
 	for (int i =0; i<N; ++i)
 	{
-		udot1[i] = udot0[i] + coeff4*udotdot0[i] + coeff5*udotdot1[i];
+		udot[i] += coeff4*udotdot0[i] + coeff5*udotdot1[i];
 	}
 }
 
@@ -647,4 +654,86 @@ void Build_Multiplier1_MPI(double Floc[], double Kbloc[], double Mbloc[], double
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	delete[] temp;
+}
+
+void Build_Block_Array(double Aloc[], double A[], int N, int countN, int nb, int nb1, int row, int bfr1, int bfr2, double sub, int size, int rank)
+{
+  	int * count = new int[size]();
+  	int * displ = new int[size]();
+
+	for (int i = 0; i<size; ++i)
+	{
+		count[i] = nb1;
+		displ[i] = nb1*i;
+		if (i == size - 1)
+		{
+		  count[i] = countN - i*nb1;
+		}
+	}
+
+	MPI_Scatterv(A, count, displ, MPI_DOUBLE, Aloc, nb1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+	if (rank == size - 1)
+	{
+	    for (int i = 0; i<nb*size-N; ++i)
+	    {
+	      int pnt1 = (N-(size-1)*nb+i)*row+bfr1+bfr2;
+	      Aloc[pnt1] = sub;
+	    }
+	}
+}
+
+void Banded_Matrix_Solver_Parallel(double Ab[], double b[], int N, int nb, int lda, int kl, int ku, int size)
+{
+	const int ldb = nb;
+	const int nrhs = 1;
+	const int ja = 1;
+	const int ib = 1;
+	const int lwork = (nb+ku)*(kl+ku)+6*(kl+ku)*(kl+2*ku) + max(nrhs*(nb+2*kl+4*ku), 1);
+	int info = 0;
+
+	double * Ab_temp = new double[lda*N]();
+	F77NAME(dcopy)(lda*N, Ab, 1, Ab_temp,1);
+
+	char order = 'R';
+	int nrow = 1;
+	int ncol = size;
+	int ctx;
+	int mype;
+	int npe;
+	int myrow;
+	int mycol;
+
+	Cblacs_pinfo(&mype, &npe);
+    Cblacs_get( 0, 0, &ctx );
+    Cblacs_gridinit( &ctx, &order, 1, npe );
+    Cblacs_gridinfo( ctx, &nrow, &ncol, &myrow, &mycol);
+
+    int desca[7];
+    desca[0] = 501;
+    desca[1] = ctx;
+    desca[2] = N;
+    desca[3] = nb;
+    desca[4] = 0;
+    desca[5] = lda;
+    desca[6] = 0;
+
+    int descb[7];
+    descb[0] = 502;
+    descb[1] = ctx;
+    descb[2] = N;
+    descb[3] = nb;
+    descb[4] = 0;
+    descb[5] = nb;
+    descb[6] = 0;
+
+    int * ipiv = new int[lda*N];
+    double * wk = new double[lwork];
+
+    F77NAME(pdgbsv) (N, kl, ku, nrhs, Ab_temp, ja, desca, ipiv, b, ib, descb, wk, lwork, &info);
+
+    Cblacs_gridexit(ctx);
+
+	delete[] wk;
+	delete[] ipiv;
 }

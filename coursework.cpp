@@ -103,7 +103,16 @@ int main(int argc, char* argv[])
         }
         else if (parallel == 1)
         {
-          cout << endl;
+          int size;
+          int rank;
+
+          MPI_Init(&argc, &argv);
+          MPI_Comm_size(MPI_COMM_WORLD, &size);
+          MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+          Dynamic_Solver_MPI_2(A, E, I, L, l, qx, qy, Fy, rho, T, Nt, Nx, ku, kl, N, size, rank);
+
+          MPI_Finalize();
         }
         else
         {

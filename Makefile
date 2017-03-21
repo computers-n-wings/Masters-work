@@ -6,7 +6,7 @@ OBJS = coursework.o myfunctions.o solvers.o
 LDLIBSP = -lscalapack-openmpi -lblacs-openmpi -lblacsCinit-openmpi -llapack -lblas -lboost_program_options
 
 # Default target
-all: Task4 clean
+all: Task5 clean
 
 # This target will compile the files
 compile: $(OBJS) $(HDRS)
@@ -19,16 +19,19 @@ Task1: compile
 
 # This target will run the executable with parameters for task 2
 Task2: compile
-	mpirun -np 1 ./run --Nx 4 --time_dependence 1 --scheme 0 --T 1.0 --Nt 5 
+	mpirun -np 1 ./run --time_dependence 1 --scheme 0
 	# python $@.py &
 
 # This target will run the executable with parameters for task 3
 Task3: compile
-	mpirun -np 1 ./run --Nx 6 --time_dependence 1 --scheme 1 --T 1.0 --Nt 1000
+	mpirun -np 1 ./run --time_dependence 1 --scheme 1
 	# python Task1.py &
 
 Task4: compile
-	mpirun -np 2 ./run --Nx 10 --time_dependence 1 --scheme 0 --parallel 1 --T 1.0 --Nt 10000
+	mpirun -np 2 ./run --time_dependence 1 --scheme 0 --parallel 1
+
+Task5: compile
+	mpirun -np 4 ./run --Nx 24 --time_dependence 1 --scheme 1 --parallel 1 --Nt 10000
 
 # This target will remove .o files and compile executable
 clean:
