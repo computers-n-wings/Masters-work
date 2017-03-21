@@ -163,33 +163,44 @@ void Dynamic_Solver_MPI_1(double A, double E, double I, double L, double l, doub
     }  
     MPI_Barrier(MPI_COMM_WORLD);     
   }
-  Print_Vector_Parallel(u1loc, Nloc, size, rank);
+  // Print_Vector_Parallel(u0loc, Nloc, size, rank);
 
   if (rank == 0)
   {
-    double * Mb = new double[N]();
     double * u0 = new double[N]();
-    double * u1 = new double[N]();
-    double * F = new double[N]();
-    double * Kb = new double[lda*N]();
-
-    Build_M_global_banded(Mb, rho, A, l, Nx, N);
-    Build_K_global_banded_altered(Kb, Mb, A, E, l, L, I, del_t, Nx, N, kl, ku, lda, 0);
-
-    for (int i = 0; i<Nt; ++i)
+    for (int i = 0; i < Nloc; ++i)
     {
-      Build_F_global(F, Fy, qx, qy, (double)i*del_t/T, l, Nx, N);
-      Build_Multiplier1(F, Kb, Mb, u0, u1, del_t, N, lda, kl, ku);
-      F77NAME(dcopy)(N, u1, 1, u0, 1);
-      for (int j = 0; j<N; ++j)
-      {
-        u1[j] = F[j]/Mb[j];
-      }
+      u0[i] = u0loc[i];
     }
-    cout << endl;
-    cout << "True Solution" << endl;
-    Print_Vector(u1, N);                
+
+    MPI_Recv(&u0[Nloc], Nloc-9, MPI_DOUBLE, 1, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    Write_Vector(u0, N, l, L, "Task1");
+    // double * Mb = new double[N]();
+    // double * u1 = new double[N]();
+    // double * F = new double[N]();
+    // double * Kb = new double[lda*N]();
+
+    // Build_M_global_banded(Mb, rho, A, l, Nx, N);
+    // Build_K_global_banded_altered(Kb, Mb, A, E, l, L, I, del_t, Nx, N, kl, ku, lda, 0);
+
+    // for (int i = 0; i<Nt; ++i)
+    // {
+    //   Build_F_global(F, Fy, qx, qy, (double)i*del_t/T, l, Nx, N);
+    //   Build_Multiplier1(F, Kb, Mb, u0, u1, del_t, N, lda, kl, ku);
+    //   F77NAME(dcopy)(N, u1, 1, u0, 1);
+    //   for (int j = 0; j<N; ++j)
+    //   {
+    //     u1[j] = F[j]/Mb[j];
+    //   }
+    // }
+    // cout << endl;
+    // cout << "True Solution" << endl;
+    // Print_Vector(u1, N);                
  	}
+  else if (rank == 1)
+  {
+    MPI_Send(&u0loc[9], Nloc-9 , MPI_DOUBLE, 0, 2, MPI_COMM_WORLD);
+  }
   delete[] Mbloc;
   delete[] u0loc;
   delete[] u1loc;
@@ -238,7 +249,11 @@ void Dynamic_Solver_MPI_2(double A, double E, double I, double L, double l, doub
     F77NAME(dcopy) (nb, u1loc, 1, u0loc, 1);
     F77NAME(dcopy) (nb, udotdot1loc, 1, udotdot0loc, 1);
   }
-  
-  Print_Vector_Parallel(u0loc, nb, size, rank);
 
+  double * u0 = new double[nb*size]();
+  MPI_Gather(u0loc, nb, MPI_DOUBLE, u0, nb, MPI_DOUBLE, 0,MPI_COMM_WORLD);
+  if (rank == 0)
+  {
+    Write_Vector(u0, N, l, L, "Task1");
+  }
 }
